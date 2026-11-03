@@ -1,0 +1,5 @@
+export enum NotificationType {
+  LOAN_DUE_SOON = 'LOAN_DUE_SOON',
+  LOAN_DUE_TODAY = 'LOAN_DUE_TODAY',
+  LOAN_OVERDUE = 'LOAN_OVERDUE',
+}
