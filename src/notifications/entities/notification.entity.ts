@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { NotificationType } from '../enums/notification-type.enum';
 
 @Entity('notifications')
 export class Notification {
@@ -16,7 +17,7 @@ export class Notification {
   message: string;
 
   @Column({ type: 'varchar', length: 50 })
-  type: string;
+  type: NotificationType;
 
   @Column({ name: 'read_at', type: 'timestamp', nullable: true })
   readAt: Date | null;

@@ -1,34 +1,41 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller,Post, Body } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { UpdateNotificationDto } from './dto/update-notification.dto';
 
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+  ) {}
+
 
   @Post()
-  create(@Body() createNotificationDto: CreateNotificationDto) {
-    return this.notificationsService.create(createNotificationDto);
+  create(@Body() dto: CreateNotificationDto) {
+    return this.notificationsService.create(dto);
   }
 
-  @Get()
-  findAll() {
-    return this.notificationsService.findAll();
-  }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.notificationsService.findOne(+id);
-  }
+  // Get all notifications
+  // @Get()
+  // findAll() {
+  //   return this.notificationsService.findAll();
+  // }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateNotificationDto: UpdateNotificationDto) {
-    return this.notificationsService.update(+id, updateNotificationDto);
-  }
+  // // Get unread notification count
+  // @Get('unread-count')
+  // getUnreadCount() {
+  //   return this.notificationsService.getUnreadCount();
+  // }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.notificationsService.remove(+id);
-  }
+  // // Mark one notification as read
+  // @Patch(':id/read')
+  // markAsRead(@Param('id') id: string) {
+  //   return this.notificationsService.markAsRead(id);
+  // }
+
+  // // Mark all notifications as read
+  // @Patch('read-all')
+  // markAllAsRead() {
+  //   return this.notificationsService.markAllAsRead();
+  // }
 }
