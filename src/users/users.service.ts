@@ -1,26 +1,42 @@
 import { Injectable } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from './entities/user.entity';
+
+// The minimum the auth guard needs on every request. Never includes the password hash.
+export interface AuthUserRecord {
+  id: string;
+  status: string;
+  roleName: string | null;
+  memberId: string | null;
+}
 
 @Injectable()
 export class UsersService {
-  create(createUserDto: CreateUserDto) {
-    return 'This action adds a new user';
-  }
+  constructor(
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+  ) {}
 
-  findAll() {
-    return `This action returns all users`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
-  }
-
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async findForAuth(id: string): Promise<AuthUserRecord | null> {
+    const user = await this.usersRepository.findOne({
+      where: { id },
+      relations: { role: true, member: true },
+      select: {
+        id: true,
+        status: true,
+        role: { id: true, name: true },
+        member: { id: true },
+      },
+    });
+    if (!user) {
+      return null;
+    }
+    return {
+      id: user.id,
+      status: user.status,
+      roleName: user.role?.name ?? null,
+      memberId: user.member?.id ?? null,
+    };
   }
 }
