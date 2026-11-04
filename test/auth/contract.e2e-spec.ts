@@ -1,50 +1,20 @@
-import { INestApplication, Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Test } from '@nestjs/testing';
 import { randomBytes } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AuthModule } from '../../src/auth/auth.module';
-import { UsersModule } from '../../src/users/users.module';
-import { AuthUserRecord, UsersService } from '../../src/users/users.service';
 import { ContractTestModule } from './fixtures/contract-test.controller';
+import { createTestApp, makeUser, TEST_SECRET } from './fixtures/test-app';
 import { decodePart, signToken, unsignedToken } from './fixtures/tokens';
 
-// The guard contract, end to end through real Nest wiring. The only fake is
-// the user lookup, so no database is needed.
-const users: Record<string, AuthUserRecord | Error> = {
-  '1': { id: '1', status: 'active', roleName: 'ADMIN', memberId: null },
-  '2': { id: '2', status: 'active', roleName: 'LIBRARIAN', memberId: null },
-  '3': { id: '3', status: 'active', roleName: 'MEMBER', memberId: '30' },
-  '4': { id: '4', status: 'disabled', roleName: 'MEMBER', memberId: '40' },
-  '5': { id: '5', status: 'active', roleName: 'superuser', memberId: null },
-  '6': new Error('connection refused'),
-  '7': { id: '7', status: 'active', roleName: 'MEMBER', memberId: null },
-};
-
-const fakeUsersService = {
-  findForAuth: (id: string) => {
-    const user = users[id];
-    return user instanceof Error
-      ? Promise.reject(user)
-      : Promise.resolve(user ?? null);
-  },
-};
-
-@Module({
-  providers: [{ provide: UsersService, useValue: fakeUsersService }],
-  exports: [UsersService],
-})
-class FakeUsersModule {}
-
-const SECRET = randomBytes(48).toString('base64url');
+// The guard contract, end to end through the real AuthModule and UsersService.
+// Only the repositories are fake, so no database is needed.
+const SECRET = TEST_SECRET;
 const now = () => Math.floor(Date.now() / 1000);
 
 describe('Auth guard contract (e2e)', () => {
   let app: INestApplication<App>;
   let jwt: JwtService;
-  const savedEnv = { ...process.env };
 
   // Signed by the app's own JwtService, so it uses the module's real settings.
   const tokenFor = (sub: string, role = 'MEMBER') => jwt.sign({ sub, role });
@@ -54,28 +24,25 @@ describe('Auth guard contract (e2e)', () => {
   };
 
   beforeAll(async () => {
-    process.env.JWT_ACCESS_SECRET = SECRET;
-    process.env.FRONTEND_ORIGIN = 'http://localhost:5173';
-
-    const moduleRef = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ ignoreEnvFile: true }),
-        AuthModule,
-        ContractTestModule,
-      ],
-    })
-      .overrideModule(UsersModule)
-      .useModule(FakeUsersModule)
-      .compile();
-
-    app = moduleRef.createNestApplication({ logger: false });
-    await app.init();
+    const users = await Promise.all([
+      makeUser({ id: '1', role: 'ADMIN' }),
+      makeUser({ id: '2', role: 'LIBRARIAN' }),
+      makeUser({ id: '3', role: 'MEMBER', memberId: '30' }),
+      makeUser({ id: '4', role: 'MEMBER', status: 'disabled' }),
+      makeUser({ id: '5', role: 'superuser' }),
+      makeUser({ id: '6', role: 'ADMIN' }),
+      makeUser({ id: '7', role: 'MEMBER', memberId: null }),
+    ]);
+    const testApp = await createTestApp(users, [ContractTestModule]);
+    // User 6 simulates a database failure during the lookup.
+    testApp.users.failWhen = (where) =>
+      !Array.isArray(where) && where.id === '6';
+    app = testApp.app;
     jwt = app.get(JwtService);
   });
 
   afterAll(async () => {
     await app.close();
-    process.env = savedEnv;
   });
 
   describe('decorators', () => {

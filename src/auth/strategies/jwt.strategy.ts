@@ -8,12 +8,10 @@ import type { ConfigType } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AccountStatus } from '../../users/enums/account-status.enum';
-import { RoleName } from '../../users/enums/role-name.enum';
+import { isRoleName, RoleName } from '../../users/enums/role-name.enum';
 import { UsersService } from '../../users/users.service';
 import { authConfig } from '../config/auth.config';
 import { AuthUser, JwtPayload } from '../types/auth-user';
-
-const ROLE_NAMES = new Set<string>(Object.values(RoleName));
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -53,12 +51,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!user || user.status !== AccountStatus.ACTIVE) {
       throw new UnauthorizedException();
     }
-    if (!user.roleName || !ROLE_NAMES.has(user.roleName)) {
+    if (!isRoleName(user.roleName)) {
       this.logger.warn(`User ${user.id} has an unknown role; access denied`);
       throw new UnauthorizedException();
     }
 
-    const role = user.roleName as RoleName;
+    const role = user.roleName;
     if (role !== RoleName.MEMBER) {
       return { id: user.id, role };
     }
