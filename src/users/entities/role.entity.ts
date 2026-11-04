@@ -1,13 +1,23 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  Check,
+} from 'typeorm';
 import { User } from './user.entity';
+import { RoleName } from '../enums/role-name.enum';
 
 @Entity('roles')
+@Check('CHK_roles_name', `"name" IN ('ADMIN', 'LIBRARIAN', 'MEMBER')`)
 export class Role {
   @PrimaryGeneratedColumn({ type: 'integer' })
   id: number;
 
   @Column({ type: 'varchar', length: 50, unique: true })
-  name: string; // 'admin', 'librarian', 'member'
+  name: RoleName;
 
   @Column({ type: 'text', nullable: true })
   description: string;
