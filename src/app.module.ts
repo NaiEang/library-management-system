@@ -26,6 +26,7 @@ import { User } from './users/entities/user.entity';
 import { ActivityLog } from './dashboard/entities/activity-log.entity';
 import { Notification } from './notifications/entities/notification.entity';
 import { CategoriesModule } from './categories/categories.module';
+import { AuthorsModule } from './authors/authors.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { CategoriesModule } from './categories/categories.module';
     MembersModule,
     BooksModule,
     CategoriesModule,
+    AuthorsModule,
     LoansModule,
     PaymentsModule,
     NotificationsModule,
