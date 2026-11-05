@@ -25,6 +25,7 @@ import { Role } from './users/entities/role.entity.js';
 import { User } from './users/entities/user.entity';
 import { ActivityLog } from './dashboard/entities/activity-log.entity';
 import { Notification } from './notifications/entities/notification.entity';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { Notification } from './notifications/entities/notification.entity';
     UsersModule,
     MembersModule,
     BooksModule,
+    CategoriesModule,
     LoansModule,
     PaymentsModule,
     NotificationsModule,
