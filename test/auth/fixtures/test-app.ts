@@ -10,7 +10,7 @@ import { PasswordService } from '../../../src/auth/password/password.service';
 import { Member } from '../../../src/members/entities/member.entity';
 import { Role } from '../../../src/users/entities/role.entity';
 import { User } from '../../../src/users/entities/user.entity';
-import { FakeRepository } from './fake-repository';
+import { FakeEntityManager, FakeRepository } from './fake-repository';
 
 export const TEST_SECRET = randomBytes(48).toString('base64url');
 export const FRONTEND_ORIGIN = 'http://localhost:5173';
@@ -73,8 +73,16 @@ export async function makeUser(input: FakeUserInput): Promise<User> {
 export interface TestApp {
   app: INestApplication<App>;
   users: FakeRepository<User>;
+  members: FakeRepository<Member>;
   refreshTokens: FakeRepository<RefreshToken>;
 }
+
+// The roles the migration guarantees.
+export const ROLES = [
+  { id: 1, name: 'ADMIN' },
+  { id: 2, name: 'LIBRARIAN' },
+  { id: 3, name: 'MEMBER' },
+] as Role[];
 
 // The real AuthModule and UsersModule with in-memory repositories: no database.
 export async function createTestApp(
@@ -85,7 +93,27 @@ export async function createTestApp(
   process.env.FRONTEND_ORIGIN = FRONTEND_ORIGIN;
 
   const userRepository = new FakeRepository<User>(users);
+  const roleRepository = new FakeRepository<Role>(structuredClone(ROLES));
+  const memberRepository = new FakeRepository<Member>();
   const refreshTokenRepository = new FakeRepository<RefreshToken>();
+  // What a database join would return for newly inserted rows.
+  userRepository.onInsert = (user) => {
+    user.role = roleRepository.rows.find((role) => role.id === user.roleId)!;
+    user.member = null as unknown as Member;
+  };
+  memberRepository.onInsert = (member) => {
+    const owner = userRepository.rows.find((user) => user.id === member.userId);
+    if (owner) {
+      owner.member = structuredClone(member);
+    }
+  };
+  userRepository.manager = new FakeEntityManager(
+    new Map<unknown, FakeRepository<any>>([
+      [User, userRepository],
+      [Role, roleRepository],
+      [Member, memberRepository],
+    ]),
+  );
 
   const moduleRef = await Test.createTestingModule({
     imports: [
@@ -97,9 +125,9 @@ export async function createTestApp(
     .overrideProvider(getRepositoryToken(User))
     .useValue(userRepository)
     .overrideProvider(getRepositoryToken(Role))
-    .useValue(new FakeRepository<Role>())
+    .useValue(roleRepository)
     .overrideProvider(getRepositoryToken(Member))
-    .useValue(new FakeRepository<Member>())
+    .useValue(memberRepository)
     .overrideProvider(getRepositoryToken(RefreshToken))
     .useValue(refreshTokenRepository)
     .compile();
@@ -110,5 +138,10 @@ export async function createTestApp(
   // Same global pipe as src/main.ts.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.init();
-  return { app, users: userRepository, refreshTokens: refreshTokenRepository };
+  return {
+    app,
+    users: userRepository,
+    members: memberRepository,
+    refreshTokens: refreshTokenRepository,
+  };
 }

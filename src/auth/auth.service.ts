@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   OnModuleInit,
@@ -7,12 +8,19 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'node:crypto';
-import { isRoleName, RoleName, UserStatus } from '../common/constants';
+import {
+  isRoleName,
+  MembershipStatus,
+  RoleName,
+  UserStatus,
+} from '../common/constants';
 import { normalizeEmail } from '../users/normalize';
 import { LoginCandidate, UsersService } from '../users/users.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { authConfig } from './config/auth.config';
-import { LoginResponse } from './dto/auth-responses';
+import { LoginResponse, RegisterResponse } from './dto/auth-responses';
+import { RegisterDto } from './dto/register.dto';
+import { checkPasswordPolicy } from './password/password-policy';
 import { PasswordService } from './password/password.service';
 import {
   IssuedRefreshToken,
@@ -115,6 +123,34 @@ export class AuthService implements OnModuleInit {
         },
       },
       refresh,
+    };
+  }
+
+  // Self sign-up: always a MEMBER whose membership waits for the deposit.
+  // Doesn't log the user in. Email and username arrive normalized (DTO).
+  async register(dto: RegisterDto): Promise<RegisterResponse> {
+    const problems = checkPasswordPolicy(dto.password, {
+      email: dto.email,
+      username: dto.username,
+    });
+    if (problems.length > 0) {
+      throw new BadRequestException(problems);
+    }
+
+    const member = await this.usersService.registerMember({
+      email: dto.email,
+      username: dto.username,
+      passwordHash: await this.passwordService.hash(dto.password),
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      phone: dto.phone,
+    });
+    return {
+      id: member.id,
+      email: member.email,
+      username: member.username,
+      role: RoleName.MEMBER,
+      membershipStatus: MembershipStatus.PENDING_DEPOSIT,
     };
   }
 }

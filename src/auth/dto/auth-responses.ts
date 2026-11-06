@@ -1,4 +1,4 @@
-import { RoleName } from '../../common/constants';
+import { MembershipStatus, RoleName } from '../../common/constants';
 
 export interface LoginResponse {
   accessToken: string;
@@ -13,4 +13,12 @@ export interface LoginResponse {
     // null for staff, who have no member row.
     membershipStatus: string | null;
   };
+}
+
+export interface RegisterResponse {
+  id: string;
+  email: string;
+  username: string;
+  role: RoleName.MEMBER;
+  membershipStatus: MembershipStatus.PENDING_DEPOSIT;
 }

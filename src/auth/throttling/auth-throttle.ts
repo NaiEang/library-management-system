@@ -27,3 +27,7 @@ export function emailTracker(req: Record<string, any>): string {
   }
   return `ip:${String(req.ip)}`;
 }
+
+// Register: 5 sign-ups per hour per IP. Applied with @Throttle on the route;
+// the route skips the "email" throttler.
+export const REGISTER_THROTTLE = { ip: { limit: 5, ttl: 60 * 60_000 } };

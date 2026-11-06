@@ -1,6 +1,12 @@
-import { Repository } from 'typeorm';
+import { ConflictException } from '@nestjs/common';
+import { QueryFailedError, Repository } from 'typeorm';
+import { AuthConfig } from '../auth/config/auth.config';
+import { Member } from '../members/entities/member.entity';
+import { Role } from './entities/role.entity';
 import { User } from './entities/user.entity';
-import { UsersService } from './users.service';
+import { uniqueViolationColumn, UsersService } from './users.service';
+
+const config = { libraryTimeZone: 'Asia/Phnom_Penh' } as AuthConfig;
 
 function setup(user: Partial<User> | null) {
   const repo = {
@@ -9,7 +15,7 @@ function setup(user: Partial<User> | null) {
   };
   return {
     repo,
-    service: new UsersService(repo as unknown as Repository<User>),
+    service: new UsersService(repo as unknown as Repository<User>, config),
   };
 }
 
@@ -67,5 +73,191 @@ describe('UsersService', () => {
 
   it('findProfile returns null for a missing user', async () => {
     await expect(setup(null).service.findProfile('99')).resolves.toBeNull();
+  });
+});
+
+const uniqueViolation = (column: string) =>
+  new QueryFailedError('INSERT', [], {
+    code: '23505',
+    detail: `Key (${column})=(x) already exists.`,
+  } as unknown as Error);
+
+const input = {
+  email: 'good.student@demo.com',
+  username: 'goodstudent',
+  passwordHash: '$argon2id$hash',
+  firstName: 'Good',
+};
+
+// A mocked EntityManager: one findOne for the duplicate check, one for the role.
+function registerSetup({
+  taken = null as Partial<User> | null,
+  role = { id: 3 } as Partial<Role> | null,
+  insertErrors = [] as unknown[],
+} = {}) {
+  const errors = [...insertErrors];
+  const manager = {
+    findOne: vi.fn((entity: unknown) =>
+      Promise.resolve(entity === Role ? role : taken),
+    ),
+    insert: vi.fn((entity: unknown) => {
+      const error = errors.shift();
+      if (error) {
+        return Promise.reject(error);
+      }
+      return Promise.resolve({
+        identifiers: [{ id: entity === User ? '41' : '410' }],
+      });
+    }),
+  };
+  const transaction = vi.fn((work: (m: typeof manager) => Promise<unknown>) =>
+    work(manager),
+  );
+  const repo = { manager: { transaction } };
+  const service = new UsersService(repo as unknown as Repository<User>, config);
+  const inserted = (entity: unknown) =>
+    (
+      manager.insert.mock.calls
+        .filter(([e]) => e === entity)
+        .at(-1) as unknown as [unknown, Record<string, unknown>]
+    )[1];
+  return { service, manager, transaction, inserted };
+}
+
+describe('UsersService.registerMember', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('creates an active MEMBER user and a pending_deposit member row in one transaction', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-06T03:00:00Z') });
+    const { service, manager, transaction, inserted } = registerSetup();
+    const result = await service.registerMember(input);
+
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(manager.insert).toHaveBeenCalledTimes(2);
+    expect(inserted(User)).toEqual({
+      roleId: 3,
+      email: 'good.student@demo.com',
+      username: 'goodstudent',
+      passwordHash: '$argon2id$hash',
+      firstName: 'Good',
+      lastName: undefined,
+      phone: undefined,
+      status: 'active',
+    });
+    expect(inserted(Member)).toEqual({
+      userId: '41',
+      memberCode: expect.stringMatching(/^LF-2026-[A-Z2-7]{6}$/),
+      membershipDate: '2026-11-06',
+      expiryDate: null,
+      membershipStatus: 'pending_deposit',
+      depositAmount: 0,
+    });
+    expect(result).toEqual({
+      id: '41',
+      email: 'good.student@demo.com',
+      username: 'goodstudent',
+      memberId: '410',
+      memberCode: inserted(Member).memberCode,
+    });
+  });
+
+  it("uses the library's date for membership_date, not UTC", async () => {
+    // 01:00 on Nov 7 in Phnom Penh, still Nov 6 in UTC.
+    vi.useFakeTimers({ now: new Date('2026-11-06T18:00:00Z') });
+    const { service, inserted } = registerSetup();
+    await service.registerMember(input);
+    expect(inserted(Member).membershipDate).toBe('2026-11-07');
+  });
+
+  it.each([
+    ['email', { email: input.email }, 'Email already registered'],
+    ['username', { email: 'other@demo.com' }, 'Username already taken'],
+  ])(
+    'a taken %s → 409 before inserting anything',
+    async (_label, taken, message) => {
+      const { service, manager } = registerSetup({ taken });
+      await expect(service.registerMember(input)).rejects.toThrow(
+        new ConflictException(message),
+      );
+      expect(manager.insert).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['email', 'Email already registered'],
+    ['username', 'Username already taken'],
+  ])(
+    'a parallel sign-up that wins the race on %s → 409 (from Postgres 23505)',
+    async (column, message) => {
+      const { service } = registerSetup({
+        insertErrors: [uniqueViolation(column)],
+      });
+      await expect(service.registerMember(input)).rejects.toThrow(
+        new ConflictException(message),
+      );
+    },
+  );
+
+  it('retries the whole transaction when the random member code collides', async () => {
+    const { service, transaction } = registerSetup({
+      insertErrors: [undefined, uniqueViolation('member_code')],
+    });
+    await expect(service.registerMember(input)).resolves.toMatchObject({
+      id: '41',
+    });
+    expect(transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up after 3 member code collisions', async () => {
+    const collision = uniqueViolation('member_code');
+    const { service, transaction } = registerSetup({
+      insertErrors: [
+        undefined,
+        collision,
+        undefined,
+        collision,
+        undefined,
+        collision,
+      ],
+    });
+    await expect(service.registerMember(input)).rejects.toBe(collision);
+    expect(transaction).toHaveBeenCalledTimes(3);
+  });
+
+  it('propagates a failure of the member insert, so the transaction rolls back the user', async () => {
+    const failure = new Error('members insert failed');
+    const { service, transaction } = registerSetup({
+      insertErrors: [undefined, failure],
+    });
+    await expect(service.registerMember(input)).rejects.toBe(failure);
+    // Both inserts ran inside the same transaction callback.
+    expect(transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails safely when the MEMBER role is missing', async () => {
+    const { service, manager } = registerSetup({ role: null });
+    await expect(service.registerMember(input)).rejects.toThrow(
+      /Role MEMBER not found/,
+    );
+    expect(manager.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe('uniqueViolationColumn', () => {
+  it('reads the column from a 23505 error', () => {
+    expect(uniqueViolationColumn(uniqueViolation('member_code'))).toBe(
+      'member_code',
+    );
+  });
+
+  it.each([
+    new Error('plain error'),
+    new QueryFailedError('INSERT', [], {
+      code: '23503',
+      detail: 'Key (role_id)=(9) is not present',
+    } as unknown as Error),
+    new ConflictException('x'),
+  ])('returns null for anything else', (error) => {
+    expect(uniqueViolationColumn(error)).toBeNull();
   });
 });

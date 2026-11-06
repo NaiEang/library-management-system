@@ -1,4 +1,8 @@
-import { UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RoleName } from '../common/constants';
 import { LoginCandidate, UsersService } from '../users/users.service';
@@ -24,6 +28,15 @@ async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
   const usersService = {
     findForLogin: vi.fn(() => Promise.resolve(candidate)),
     recordLogin: vi.fn(() => Promise.resolve()),
+    registerMember: vi.fn(() =>
+      Promise.resolve({
+        id: '41',
+        email: 'new.member@demo.com',
+        username: 'newmember',
+        memberId: '410',
+        memberCode: 'LF-2026-ABCDEF',
+      }),
+    ),
   };
   const passwordService = {
     hash: vi.fn(() => Promise.resolve('$argon2id$dummy')),
@@ -160,5 +173,74 @@ describe('AuthService.login', () => {
     expect(logged).not.toContain('raw-refresh');
     expect(logged).not.toContain('signed.jwt');
     expect(logged).not.toContain('$argon2id');
+  });
+});
+
+describe('AuthService.register', () => {
+  const dto = {
+    email: 'new.member@demo.com',
+    username: 'newmember',
+    password: 'a long and unusual passphrase',
+    firstName: 'New',
+  };
+
+  it('hashes the password and creates a pending_deposit MEMBER, without logging in', async () => {
+    const {
+      service,
+      usersService,
+      passwordService,
+      refreshTokens,
+      jwtService,
+    } = await setup(null);
+    await expect(service.register(dto)).resolves.toEqual({
+      id: '41',
+      email: 'new.member@demo.com',
+      username: 'newmember',
+      role: 'MEMBER',
+      membershipStatus: 'pending_deposit',
+    });
+    expect(passwordService.hash).toHaveBeenCalledWith(dto.password);
+    expect(usersService.registerMember).toHaveBeenCalledWith({
+      email: dto.email,
+      username: dto.username,
+      passwordHash: '$argon2id$dummy',
+      firstName: 'New',
+      lastName: undefined,
+      phone: undefined,
+    });
+    expect(refreshTokens.issue).not.toHaveBeenCalled();
+    expect(jwtService.signAsync).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['too short', 'short1', /at least 8/],
+    ['common', 'password1', /too common/],
+    ['equal to the email', 'new.member@demo.com', /email or username/],
+    ['equal to the username', 'NewMember', /email or username/],
+  ])(
+    'rejects a password that is %s with 400, before hashing or saving',
+    async (_label, password, rule) => {
+      const { service, usersService, passwordService } = await setup(null);
+      passwordService.hash.mockClear();
+      const error = await service
+        .register({ ...dto, password })
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(
+        JSON.stringify((error as BadRequestException).getResponse()),
+      ).toMatch(rule);
+      expect(passwordService.hash).not.toHaveBeenCalled();
+      expect(usersService.registerMember).not.toHaveBeenCalled();
+    },
+  );
+
+  it('passes a 409 from the users service through', async () => {
+    const { service, usersService } = await setup(null);
+    usersService.registerMember.mockRejectedValueOnce(
+      new ConflictException('Email already registered'),
+    );
+    await expect(service.register(dto)).rejects.toThrow(
+      'Email already registered',
+    );
   });
 });

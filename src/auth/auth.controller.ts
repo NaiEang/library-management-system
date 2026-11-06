@@ -12,14 +12,17 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { UserProfileResponse } from '../users/mappers/user-profile.mapper';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
-import { LoginResponse } from './dto/auth-responses';
+import { LoginResponse, RegisterResponse } from './dto/auth-responses';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { REGISTER_THROTTLE } from './throttling/auth-throttle';
 import { AuthThrottlerGuard } from './throttling/auth-throttler.guard';
 import { REFRESH_COOKIE, refreshCookieOptions } from './tokens/refresh-cookie';
 
@@ -31,6 +34,18 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly adapterHost: HttpAdapterHost,
   ) {}
+
+  // Creates a MEMBER (membership pending_deposit). No tokens: the user logs
+  // in afterwards. 409 when the email or username is taken (an accepted
+  // trade-off; the rate limit protects against mass email checks).
+  @Public()
+  @UseGuards(AuthThrottlerGuard)
+  @SkipThrottle({ email: true })
+  @Throttle(REGISTER_THROTTLE)
+  @Post('register')
+  register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
+    return this.authService.register(dto);
+  }
 
   // The access token goes in the body (the frontend keeps it in memory); the
   // refresh token goes only in the httpOnly cookie.
