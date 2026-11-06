@@ -1,13 +1,26 @@
-export enum UserStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  SUSPENDED = 'suspended',
+export enum RoleName {
+  ADMIN = 'ADMIN',
+  LIBRARIAN = 'LIBRARIAN',
+  MEMBER = 'MEMBER',
 }
 
+const ROLE_NAMES = new Set<string>(Object.values(RoleName));
+
+export function isRoleName(value: unknown): value is RoleName {
+  return typeof value === 'string' && ROLE_NAMES.has(value);
+}
+
+// Account status. "Disabled" is set by an admin and blocks login.
+export enum UserStatus {
+  ACTIVE = 'active',
+  DISABLED = 'disabled',
+}
+
+// "Blocked" (an overdue book, or members.blocked_until in the future) is not a
+// membership status: Circulation computes it.
 export enum MembershipStatus {
   PENDING_DEPOSIT = 'pending_deposit',
   ACTIVE = 'active',
-  BLOCKED = 'blocked',
   EXPIRED = 'expired',
 }
 

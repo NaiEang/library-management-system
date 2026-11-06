@@ -17,6 +17,7 @@ describe('validateAuthEnv', () => {
       refreshAbsoluteTtlStaffSeconds: 12 * 3600,
       frontendOrigin: 'http://localhost:5173',
       depositAmount: 5,
+      libraryTimeZone: 'Asia/Phnom_Penh',
     });
   });
 
@@ -97,4 +98,20 @@ describe('validateAuthEnv', () => {
       validateAuthEnv({ ...baseEnv, DEPOSIT_AMOUNT: amount }),
     ).toThrow(/DEPOSIT_AMOUNT/);
   });
+
+  it('accepts another IANA time zone', () => {
+    expect(
+      validateAuthEnv({ ...baseEnv, LIBRARY_TIME_ZONE: 'Asia/Bangkok' })
+        .libraryTimeZone,
+    ).toBe('Asia/Bangkok');
+  });
+
+  it.each(['Phnom Penh', 'UTC+7', 'Mars/Olympus'])(
+    'rejects the time zone %s',
+    (zone) => {
+      expect(() =>
+        validateAuthEnv({ ...baseEnv, LIBRARY_TIME_ZONE: zone }),
+      ).toThrow(/LIBRARY_TIME_ZONE/);
+    },
+  );
 });

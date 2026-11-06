@@ -1,7 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { RoleName } from '../../users/enums/role-name.enum';
+import { RoleName } from '../../common/constants';
 import { Public } from '../decorators/public.decorator';
 import { JwtAuthGuard } from './jwt-auth.guard';
 

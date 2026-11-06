@@ -1,4 +1,4 @@
-import { RoleName } from '../../users/enums/role-name.enum';
+import { RoleName } from '../../common/constants';
 
 // What @CurrentUser() returns. Keep it small and stable: teammates depend on it.
 // Membership status is deliberately absent; read it from the database.

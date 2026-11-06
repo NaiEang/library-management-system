@@ -7,6 +7,7 @@ import { App } from 'supertest/types';
 import { AuthModule } from '../../../src/auth/auth.module';
 import { RefreshToken } from '../../../src/auth/entities/refresh-token.entity';
 import { PasswordService } from '../../../src/auth/password/password.service';
+import { Member } from '../../../src/members/entities/member.entity';
 import { Role } from '../../../src/users/entities/role.entity';
 import { User } from '../../../src/users/entities/user.entity';
 import { FakeRepository } from './fake-repository';
@@ -62,7 +63,7 @@ export async function makeUser(input: FakeUserInput): Promise<User> {
           memberCode: `LF-2026-${input.id}`,
           membershipDate: '2026-11-01',
           expiryDate: null,
-          membershipStatus: input.membershipStatus ?? 'pending',
+          membershipStatus: input.membershipStatus ?? 'pending_deposit',
           depositAmount: '0.00',
         }
       : null,
@@ -97,6 +98,8 @@ export async function createTestApp(
     .useValue(userRepository)
     .overrideProvider(getRepositoryToken(Role))
     .useValue(new FakeRepository<Role>())
+    .overrideProvider(getRepositoryToken(Member))
+    .useValue(new FakeRepository<Member>())
     .overrideProvider(getRepositoryToken(RefreshToken))
     .useValue(refreshTokenRepository)
     .compile();

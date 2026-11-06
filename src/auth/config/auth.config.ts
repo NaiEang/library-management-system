@@ -1,4 +1,5 @@
 import { registerAs } from '@nestjs/config';
+import { isValidTimeZone } from '../../members/library-date';
 import { plainToInstance, Type } from 'class-transformer';
 import {
   IsNumber,
@@ -18,6 +19,8 @@ export interface AuthConfig {
   refreshAbsoluteTtlStaffSeconds: number;
   frontendOrigin: string;
   depositAmount: number;
+  // IANA zone that defines the library's "today" (membership expiry).
+  libraryTimeZone: string;
 }
 
 const DURATION = /^\d+[smhd]$/;
@@ -56,6 +59,10 @@ class AuthEnv {
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   DEPOSIT_AMOUNT = 5;
+
+  @IsOptional()
+  @IsString()
+  LIBRARY_TIME_ZONE = 'Asia/Phnom_Penh';
 }
 
 export function durationToSeconds(value: string): number {
@@ -94,6 +101,11 @@ export function validateAuthEnv(env: Record<string, unknown>): AuthConfig {
   ) {
     problems.push('JWT_ACCESS_TTL must be at most 1h');
   }
+  if (parsed.LIBRARY_TIME_ZONE && !isValidTimeZone(parsed.LIBRARY_TIME_ZONE)) {
+    problems.push(
+      'LIBRARY_TIME_ZONE must be an IANA time zone such as Asia/Phnom_Penh',
+    );
+  }
   if (problems.length > 0) {
     throw new Error(`Invalid auth configuration:\n- ${problems.join('\n- ')}`);
   }
@@ -110,6 +122,7 @@ export function validateAuthEnv(env: Record<string, unknown>): AuthConfig {
     ),
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     depositAmount: parsed.DEPOSIT_AMOUNT,
+    libraryTimeZone: parsed.LIBRARY_TIME_ZONE,
   };
 }
 

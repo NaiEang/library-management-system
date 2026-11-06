@@ -3,7 +3,7 @@ import type { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Repository } from 'typeorm';
-import { RoleName } from '../../users/enums/role-name.enum';
+import { RoleName } from '../../common/constants';
 import { authConfig } from '../config/auth.config';
 import { RefreshToken } from '../entities/refresh-token.entity';
 

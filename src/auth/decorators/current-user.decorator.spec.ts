@@ -1,5 +1,5 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { RoleName } from '../../users/enums/role-name.enum';
+import { RoleName } from '../../common/constants';
 import { AuthUser } from '../types/auth-user';
 import { currentUserFactory } from './current-user.decorator';
 

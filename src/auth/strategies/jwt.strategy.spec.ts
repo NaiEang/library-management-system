@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
-import { RoleName } from '../../users/enums/role-name.enum';
+import { RoleName } from '../../common/constants';
 import { AuthUserRecord, UsersService } from '../../users/users.service';
 import { AuthConfig } from '../config/auth.config';
 import { JwtStrategy } from './jwt.strategy';

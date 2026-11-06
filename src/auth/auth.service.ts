@@ -7,8 +7,7 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'node:crypto';
-import { AccountStatus } from '../users/enums/account-status.enum';
-import { isRoleName, RoleName } from '../users/enums/role-name.enum';
+import { isRoleName, RoleName, UserStatus } from '../common/constants';
 import { normalizeEmail } from '../users/normalize';
 import { LoginCandidate, UsersService } from '../users/users.service';
 import { AuthAuditService } from './audit/auth-audit.service';
@@ -131,7 +130,7 @@ function loginFailureReason(
   if (!passwordMatches) {
     return 'wrong_password';
   }
-  if (candidate.status !== AccountStatus.ACTIVE) {
+  if (candidate.status !== UserStatus.ACTIVE) {
     return 'disabled';
   }
   if (!isRoleName(candidate.roleName)) {

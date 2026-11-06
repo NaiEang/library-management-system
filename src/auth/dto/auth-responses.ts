@@ -1,4 +1,4 @@
-import { RoleName } from '../../users/enums/role-name.enum';
+import { RoleName } from '../../common/constants';
 
 export interface LoginResponse {
   accessToken: string;

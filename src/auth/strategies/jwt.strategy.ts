@@ -7,8 +7,7 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { AccountStatus } from '../../users/enums/account-status.enum';
-import { isRoleName, RoleName } from '../../users/enums/role-name.enum';
+import { isRoleName, RoleName, UserStatus } from '../../common/constants';
 import { UsersService } from '../../users/users.service';
 import { authConfig } from '../config/auth.config';
 import { AuthUser, JwtPayload } from '../types/auth-user';
@@ -48,7 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException();
     }
 
-    if (!user || user.status !== AccountStatus.ACTIVE) {
+    if (!user || user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException();
     }
     if (!isRoleName(user.roleName)) {

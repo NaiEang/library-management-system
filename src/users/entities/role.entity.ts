@@ -8,7 +8,7 @@ import {
   Check,
 } from 'typeorm';
 import { User } from './user.entity';
-import { RoleName } from '../enums/role-name.enum';
+import { RoleName } from '../../common/constants';
 
 @Entity('roles')
 @Check('CHK_roles_name', `"name" IN ('ADMIN', 'LIBRARIAN', 'MEMBER')`)

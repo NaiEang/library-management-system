@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { RoleName } from '../users/enums/role-name.enum';
+import { RoleName } from '../common/constants';
 import { LoginCandidate, UsersService } from '../users/users.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthService } from './auth.service';
@@ -17,7 +17,7 @@ const member: LoginCandidate = {
   passwordHash: '$argon2id$real',
   roleName: 'MEMBER',
   memberId: '30',
-  membershipStatus: 'pending',
+  membershipStatus: 'pending_deposit',
 };
 
 async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
@@ -91,7 +91,7 @@ describe('AuthService.login', () => {
         email: member.email,
         username: 'goodstudent',
         role: 'MEMBER',
-        membershipStatus: 'pending',
+        membershipStatus: 'pending_deposit',
       },
     });
     expect(result.refresh.token).toBe('raw-refresh');

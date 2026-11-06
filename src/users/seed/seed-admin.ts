@@ -4,8 +4,7 @@ import { checkPasswordPolicy } from '../../auth/password/password-policy';
 import { PasswordService } from '../../auth/password/password.service';
 import { Role } from '../entities/role.entity';
 import { User } from '../entities/user.entity';
-import { AccountStatus } from '../enums/account-status.enum';
-import { RoleName } from '../enums/role-name.enum';
+import { RoleName, UserStatus } from '../../common/constants';
 import {
   normalizeEmail,
   normalizeUsername,
@@ -65,7 +64,7 @@ export async function seedAdmin(
     }
 
     const activeAdmins = await manager.count(User, {
-      where: { roleId: adminRole.id, status: AccountStatus.ACTIVE },
+      where: { roleId: adminRole.id, status: UserStatus.ACTIVE },
     });
     if (activeAdmins > 0) {
       logger.log('An active admin already exists; nothing to do');
@@ -87,7 +86,7 @@ export async function seedAdmin(
       email,
       username,
       passwordHash,
-      status: AccountStatus.ACTIVE,
+      status: UserStatus.ACTIVE,
     });
     logger.log(`Created admin ${email}`);
     return 'created';

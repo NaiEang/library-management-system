@@ -1,4 +1,5 @@
 import { getMetadataArgsStorage } from 'typeorm';
+import { Member } from '../../members/entities/member.entity';
 import { Role } from '../../users/entities/role.entity';
 import { User } from '../../users/entities/user.entity';
 import { RefreshToken } from './refresh-token.entity';
@@ -105,6 +106,60 @@ describe('Auth & Users schema contract', () => {
       expect(indexed).toEqual(
         expect.arrayContaining([['userId'], ['familyId']]),
       );
+    });
+  });
+
+  describe('members', () => {
+    it('limits membership_status to pending_deposit | active | expired, defaulting to pending_deposit', () => {
+      expect(column(Member, 'membershipStatus')).toMatchObject({
+        default: 'pending_deposit',
+      });
+      expect(checks(Member)).toContain(
+        `"membership_status" IN ('pending_deposit', 'active', 'expired')`,
+      );
+    });
+
+    it('has no "blocked" or "suspended" membership status', () => {
+      expect(checks(Member).join(' ')).not.toMatch(/blocked|suspended/);
+    });
+
+    it('allows a null expiry_date until the deposit is verified', () => {
+      expect(column(Member, 'expiryDate')).toMatchObject({
+        name: 'expiry_date',
+        nullable: true,
+      });
+    });
+
+    it('records who verified the deposit and when', () => {
+      expect(column(Member, 'depositVerifiedAt')).toMatchObject({
+        name: 'deposit_verified_at',
+        type: 'timestamptz',
+        nullable: true,
+      });
+      expect(column(Member, 'depositVerifiedBy')).toMatchObject({
+        name: 'deposit_verified_by',
+        nullable: true,
+      });
+      expect(relation(Member, 'depositVerifiedByUser')?.options).toMatchObject({
+        onDelete: 'RESTRICT',
+      });
+    });
+
+    it('has a nullable blocked_until timestamptz for Circulation', () => {
+      expect(column(Member, 'blockedUntil')).toMatchObject({
+        name: 'blocked_until',
+        type: 'timestamptz',
+        nullable: true,
+      });
+    });
+
+    it('keeps the fields and relations loans and payments read', () => {
+      expect(column(Member, 'depositAmount')).toMatchObject({
+        name: 'deposit_amount',
+      });
+      expect(relation(Member, 'loans')).toBeDefined();
+      expect(relation(Member, 'payments')).toBeDefined();
+      expect(relation(Member, 'user')).toBeDefined();
     });
   });
 });

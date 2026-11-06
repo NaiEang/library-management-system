@@ -16,7 +16,7 @@ const base = {
   member: {
     id: '30',
     memberCode: 'LF-2026-ABC123',
-    membershipStatus: 'pending',
+    membershipStatus: 'pending_deposit',
     membershipDate: '2026-11-01',
     expiryDate: null,
     depositAmount: '5.00',
@@ -33,7 +33,7 @@ describe('toUserProfile', () => {
     expect(toUserProfile(base as unknown as User).member).toEqual({
       id: '30',
       memberCode: 'LF-2026-ABC123',
-      membershipStatus: 'pending',
+      membershipStatus: 'pending_deposit',
       membershipDate: '2026-11-01',
       expiryDate: null,
       depositAmount: 5,
@@ -43,11 +43,11 @@ describe('toUserProfile', () => {
   it('passes the membership status through as stored (no "blocked" assumptions)', () => {
     const user = {
       ...base,
-      member: { ...base.member, membershipStatus: 'suspended' },
+      member: { ...base.member, membershipStatus: 'expired' },
     };
     expect(
       toUserProfile(user as unknown as User).member?.membershipStatus,
-    ).toBe('suspended');
+    ).toBe('expired');
   });
 
   it('returns member: null for staff', () => {

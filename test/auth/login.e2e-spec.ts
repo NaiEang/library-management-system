@@ -20,7 +20,7 @@ const seedUsers = () =>
       id: '3',
       role: 'MEMBER',
       email: 'good.student@demo.com',
-      membershipStatus: 'pending',
+      membershipStatus: 'pending_deposit',
     }),
     makeUser({
       id: '4',
@@ -65,7 +65,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
     it.each([
       ['admin@libraflow.test', '1', 'ADMIN', null],
       ['librarian@libraflow.test', '2', 'LIBRARIAN', null],
-      ['good.student@demo.com', '3', 'MEMBER', 'pending'],
+      ['good.student@demo.com', '3', 'MEMBER', 'pending_deposit'],
     ])(
       '%s → 200 with an access token and the user summary',
       async (email, id, role, membershipStatus) => {
@@ -262,7 +262,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
         member: {
           id: '30',
           memberCode: 'LF-2026-3',
-          membershipStatus: 'pending',
+          membershipStatus: 'pending_deposit',
           membershipDate: '2026-11-01',
           expiryDate: null,
           depositAmount: 0,

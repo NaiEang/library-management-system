@@ -14,7 +14,7 @@ import {
 import { Role } from './role.entity';
 import { Member } from '../../members/entities/member.entity';
 import { ActivityLog } from '../../dashboard/entities/activity-log.entity';
-import { AccountStatus } from '../enums/account-status.enum';
+import { UserStatus } from '../../common/constants';
 
 @Entity('users')
 @Check('CHK_users_status', `"status" IN ('active', 'disabled')`)
@@ -52,8 +52,8 @@ export class User {
   @Column({ type: 'varchar', length: 30, nullable: true })
   phone: string;
 
-  @Column({ type: 'varchar', length: 20, default: AccountStatus.ACTIVE })
-  status: AccountStatus;
+  @Column({ type: 'varchar', length: 20, default: UserStatus.ACTIVE })
+  status: UserStatus;
 
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
   lastLoginAt: Date | null;
