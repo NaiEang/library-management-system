@@ -13,7 +13,6 @@ import { authConfig } from './config/auth.config';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
-import { PasswordService } from './password/password.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AUTH_THROTTLE_OPTIONS } from './throttling/auth-throttle';
 import { RefreshTokenService } from './tokens/refresh-token.service';
@@ -43,7 +42,6 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
   providers: [
     AuthService,
     AuthAuditService,
-    PasswordService,
     RefreshTokenService,
     JwtStrategy,
     // Global guards run in this order: authentication first, then roles.

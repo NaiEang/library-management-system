@@ -1,12 +1,16 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { QueryFailedError, Repository } from 'typeorm';
 import { AuthConfig } from '../auth/config/auth.config';
+import { PasswordService } from '../auth/password/password.service';
 import { Member } from '../members/entities/member.entity';
 import { Role } from './entities/role.entity';
 import { User } from './entities/user.entity';
 import { uniqueViolationColumn, UsersService } from './users.service';
 
 const config = { libraryTimeZone: 'Asia/Phnom_Penh' } as AuthConfig;
+const passwordService = {
+  hash: vi.fn(() => Promise.resolve('$argon2id$hashed')),
+} as unknown as PasswordService;
 
 function setup(user: Partial<User> | null) {
   const repo = {
@@ -15,7 +19,11 @@ function setup(user: Partial<User> | null) {
   };
   return {
     repo,
-    service: new UsersService(repo as unknown as Repository<User>, config),
+    service: new UsersService(
+      repo as unknown as Repository<User>,
+      config,
+      passwordService,
+    ),
   };
 }
 
@@ -114,7 +122,11 @@ function registerSetup({
     work(manager),
   );
   const repo = { manager: { transaction } };
-  const service = new UsersService(repo as unknown as Repository<User>, config);
+  const service = new UsersService(
+    repo as unknown as Repository<User>,
+    config,
+    passwordService,
+  );
   const inserted = (entity: unknown) =>
     (
       manager.insert.mock.calls
@@ -259,5 +271,96 @@ describe('uniqueViolationColumn', () => {
     new ConflictException('x'),
   ])('returns null for anything else', (error) => {
     expect(uniqueViolationColumn(error)).toBeNull();
+  });
+});
+
+describe('UsersService.createLibrarian', () => {
+  const staff = {
+    email: 'desk.librarian@libraflow.test',
+    username: 'desk.librarian',
+    password: 'a long and unusual passphrase',
+    firstName: 'Desk',
+    lastName: 'Librarian',
+  };
+
+  it('creates an active LIBRARIAN with a hashed password and no member row', async () => {
+    const { service, manager, inserted } = registerSetup({ role: { id: 2 } });
+    await expect(service.createLibrarian(staff)).resolves.toEqual({
+      id: '41',
+      email: staff.email,
+      username: staff.username,
+      firstName: 'Desk',
+      lastName: 'Librarian',
+      phone: null,
+      role: 'LIBRARIAN',
+      status: 'active',
+    });
+    expect(manager.findOne).toHaveBeenCalledWith(
+      Role,
+      expect.objectContaining({ where: { name: 'LIBRARIAN' } }),
+    );
+    expect(inserted(User)).toMatchObject({
+      roleId: 2,
+      passwordHash: '$argon2id$hashed',
+      status: 'active',
+    });
+    expect(manager.insert).toHaveBeenCalledTimes(1);
+    expect(manager.insert).not.toHaveBeenCalledWith(Member, expect.anything());
+  });
+
+  it('never returns or stores the plain password', async () => {
+    const { service, inserted } = registerSetup({ role: { id: 2 } });
+    const result = await service.createLibrarian(staff);
+    expect(JSON.stringify(result)).not.toContain(staff.password);
+    expect(JSON.stringify(inserted(User))).not.toContain(staff.password);
+  });
+
+  it.each([
+    ['too short', 'short1', /at least 8/],
+    ['common', 'password1', /too common/],
+    ['equal to the username', 'Desk.Librarian', /email or username/],
+  ])(
+    'rejects a password that is %s with 400, before touching the database',
+    async (_label, password, rule) => {
+      const { service, transaction } = registerSetup();
+      const error = await service
+        .createLibrarian({ ...staff, password })
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(
+        JSON.stringify((error as BadRequestException).getResponse()),
+      ).toMatch(rule);
+      expect(transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [
+      'email (pre-check)',
+      { taken: { email: 'desk.librarian@libraflow.test' } },
+      'Email already registered',
+    ],
+    [
+      'username (pre-check)',
+      { taken: { email: 'other@x.com' } },
+      'Username already taken',
+    ],
+    [
+      'email (race, 23505)',
+      { insertErrors: [uniqueViolation('email')] },
+      'Email already registered',
+    ],
+  ])('a taken %s → 409', async (_label, options, message) => {
+    const { service } = registerSetup({ role: { id: 2 }, ...options });
+    await expect(service.createLibrarian(staff)).rejects.toThrow(
+      new ConflictException(message),
+    );
+  });
+
+  it('fails safely when the LIBRARIAN role is missing', async () => {
+    const { service } = registerSetup({ role: null });
+    await expect(service.createLibrarian(staff)).rejects.toThrow(
+      /Role LIBRARIAN not found/,
+    );
   });
 });

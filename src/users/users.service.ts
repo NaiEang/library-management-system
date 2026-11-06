@@ -1,8 +1,15 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, QueryFailedError, Repository } from 'typeorm';
 import { authConfig } from '../auth/config/auth.config';
+import { checkPasswordPolicy } from '../auth/password/password-policy';
+import { PasswordService } from '../auth/password/password.service';
 import { MembershipStatus, RoleName, UserStatus } from '../common/constants';
 import { Member } from '../members/entities/member.entity';
 import { libraryToday } from '../members/library-date';
@@ -54,6 +61,28 @@ export interface RegisteredMember {
   memberCode: string;
 }
 
+// Input for a staff account created by an admin. The password is plain here;
+// the policy check and hashing happen in createLibrarian().
+export interface NewStaffInput {
+  email: string;
+  username: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+}
+
+export interface StaffAccountResponse {
+  id: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  role: RoleName;
+  status: UserStatus;
+}
+
 const EMAIL_TAKEN = 'Email already registered';
 const USERNAME_TAKEN = 'Username already taken';
 const MEMBER_CODE_ATTEMPTS = 3;
@@ -65,6 +94,7 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
     @Inject(authConfig.KEY)
     private readonly config: ConfigType<typeof authConfig>,
+    private readonly passwordService: PasswordService,
   ) {}
 
   async findForAuth(id: string): Promise<AuthUserRecord | null> {
@@ -145,13 +175,7 @@ export class UsersService {
         if (column === 'member_code' && attempt < MEMBER_CODE_ATTEMPTS) {
           continue;
         }
-        if (column === 'email') {
-          throw new ConflictException(EMAIL_TAKEN);
-        }
-        if (column === 'username') {
-          throw new ConflictException(USERNAME_TAKEN);
-        }
-        throw error;
+        throw conflictFor(error);
       }
     }
   }
@@ -160,35 +184,7 @@ export class UsersService {
     manager: EntityManager,
     input: NewMemberInput,
   ): Promise<RegisteredMember> {
-    const taken = await manager.findOne(User, {
-      where: [{ email: input.email }, { username: input.username }],
-      select: { id: true, email: true },
-    });
-    if (taken) {
-      throw new ConflictException(
-        taken.email === input.email ? EMAIL_TAKEN : USERNAME_TAKEN,
-      );
-    }
-
-    const role = await manager.findOne(Role, {
-      where: { name: RoleName.MEMBER },
-      select: { id: true },
-    });
-    if (!role) {
-      throw new Error('Role MEMBER not found; run the migrations first');
-    }
-
-    const inserted = await manager.insert(User, {
-      roleId: role.id,
-      email: input.email,
-      username: input.username,
-      passwordHash: input.passwordHash,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      phone: input.phone,
-      status: UserStatus.ACTIVE,
-    });
-    const userId = String(inserted.identifiers[0].id);
+    const userId = await this.insertUser(manager, RoleName.MEMBER, input);
 
     // The library's date, not the database default (CURRENT_DATE is UTC on Supabase).
     const today = libraryToday(this.config.libraryTimeZone);
@@ -210,6 +206,92 @@ export class UsersService {
       memberCode,
     };
   }
+
+  // Admin-only (the route has @Roles(ADMIN)). A librarian has no member row.
+  async createLibrarian(input: NewStaffInput): Promise<StaffAccountResponse> {
+    const problems = checkPasswordPolicy(input.password, {
+      email: input.email,
+      username: input.username,
+    });
+    if (problems.length > 0) {
+      throw new BadRequestException(problems);
+    }
+    const passwordHash = await this.passwordService.hash(input.password);
+    try {
+      const id = await this.usersRepository.manager.transaction((manager) =>
+        this.insertUser(manager, RoleName.LIBRARIAN, {
+          email: input.email,
+          username: input.username,
+          passwordHash,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          phone: input.phone,
+        }),
+      );
+      return {
+        id,
+        email: input.email,
+        username: input.username,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        phone: input.phone ?? null,
+        role: RoleName.LIBRARIAN,
+        status: UserStatus.ACTIVE,
+      };
+    } catch (error) {
+      throw conflictFor(error);
+    }
+  }
+
+  // Shared by sign-up and staff creation: duplicate check, role lookup, insert.
+  private async insertUser(
+    manager: EntityManager,
+    roleName: RoleName,
+    input: NewMemberInput,
+  ): Promise<string> {
+    const taken = await manager.findOne(User, {
+      where: [{ email: input.email }, { username: input.username }],
+      select: { id: true, email: true },
+    });
+    if (taken) {
+      throw new ConflictException(
+        taken.email === input.email ? EMAIL_TAKEN : USERNAME_TAKEN,
+      );
+    }
+
+    const role = await manager.findOne(Role, {
+      where: { name: roleName },
+      select: { id: true },
+    });
+    if (!role) {
+      throw new Error(`Role ${roleName} not found; run the migrations first`);
+    }
+
+    const inserted = await manager.insert(User, {
+      roleId: role.id,
+      email: input.email,
+      username: input.username,
+      passwordHash: input.passwordHash,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone,
+      status: UserStatus.ACTIVE,
+    });
+    return String(inserted.identifiers[0].id);
+  }
+}
+
+// A unique violation on email or username (a parallel sign-up won the race)
+// becomes a 409; any other error is returned unchanged.
+function conflictFor(error: unknown): unknown {
+  const column = uniqueViolationColumn(error);
+  if (column === 'email') {
+    return new ConflictException(EMAIL_TAKEN);
+  }
+  if (column === 'username') {
+    return new ConflictException(USERNAME_TAKEN);
+  }
+  return error;
 }
 
 // The column behind a Postgres unique violation (23505), read from the error
