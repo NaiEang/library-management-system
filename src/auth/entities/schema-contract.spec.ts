@@ -119,6 +119,14 @@ describe('Auth & Users schema contract', () => {
       );
     });
 
+    it('restores the original deposit and date-range checks', () => {
+      expect(checks(Member)).toContain(`"deposit_amount" >= 0`);
+      expect(checks(Member)).toContain(
+        `"expiry_date" IS NULL OR "expiry_date" >= "membership_date"`,
+      );
+      expect(column(Member, 'depositAmount')).toMatchObject({ default: 0 });
+    });
+
     it('has no "blocked" or "suspended" membership status', () => {
       expect(checks(Member).join(' ')).not.toMatch(/blocked|suspended/);
     });

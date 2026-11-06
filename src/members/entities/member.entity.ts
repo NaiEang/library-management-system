@@ -19,6 +19,13 @@ import { MembershipStatus } from '../../common/constants';
 // Loans and payments read this entity: keep existing fields and relations as
 // they are. New columns are additive.
 @Entity('members')
+// The original checks from the team's schema (InitialSchema dropped them
+// by accident), restored with their original names.
+@Check('chk_members_deposit_nonnegative', `"deposit_amount" >= 0`)
+@Check(
+  'chk_membership_date_range',
+  `"expiry_date" IS NULL OR "expiry_date" >= "membership_date"`,
+)
 @Check(
   'CHK_members_membership_status',
   `"membership_status" IN ('pending_deposit', 'active', 'expired')`,
