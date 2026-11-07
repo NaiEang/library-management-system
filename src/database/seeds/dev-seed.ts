@@ -3,7 +3,7 @@
 // refuses to run against anything but localhost/Docker. `npm run seed:dev`
 import 'dotenv/config';
 import { faker } from '@faker-js/faker';
-import { describeActivity } from '../../activity-logs/describe-activity';
+import { describeActivity } from '../../dashboard/describe-activity';
 import { insertRows, syncSequence, type Row } from '../insert-rows';
 import { localDataSource, resetSchema } from '../local-db';
 

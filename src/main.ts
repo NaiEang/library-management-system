@@ -1,10 +1,10 @@
 // Must stay the first import: it patches http and pg before anything loads them
-import './instrumentation';
+import './common/observability/instrumentation';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
-import { appLogger } from './observability/app-logger';
+import { appLogger } from './common/observability/app-logger';
 
 async function bootstrap() {
   const app = configureApp(

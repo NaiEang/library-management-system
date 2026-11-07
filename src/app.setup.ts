@@ -1,9 +1,9 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { devUser } from './common/rbac/dev-user.middleware';
-import { MetricsService } from './observability/metrics.service';
-import { requestTelemetry } from './observability/request-telemetry.middleware';
-import { TracingInterceptor } from './observability/tracing.interceptor';
+import { MetricsService } from './common/observability/metrics.service';
+import { requestTelemetry } from './common/observability/request-telemetry.middleware';
+import { TracingInterceptor } from './common/observability/tracing.interceptor';
 
 /** Shared by main.ts and the E2E tests so both boot the exact same pipeline. */
 export function configureApp<T extends INestApplication>(app: T): T {

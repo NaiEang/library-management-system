@@ -7,7 +7,7 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
-    exclude: ['**/node_modules/**', 'client/**'],
+    exclude: ['**/node_modules/**'],
     // Rebuilds a local test database with known fixtures; Supabase is never touched
     globalSetup: ['./test/setup/global-setup.ts'],
     env: TEST_ENV,

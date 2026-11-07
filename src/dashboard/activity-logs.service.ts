@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { AuthUser } from '../common/rbac/auth-user';
-import { ActivityLog } from '../dashboard/entities/activity-log.entity';
-import { MetricsService } from '../observability/metrics.service';
-import { withSpan } from '../observability/with-span';
+import { ActivityLog } from './entities/activity-log.entity';
+import { MetricsService } from '../common/observability/metrics.service';
+import { withSpan } from '../common/observability/with-span';
 import { describeActivity } from './describe-activity';
 import type { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 

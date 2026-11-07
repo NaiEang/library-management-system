@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { withSpan } from '../observability/with-span';
+import { withSpan } from '../common/observability/with-span';
 
 type CountRow = { status: string; count: number };
 

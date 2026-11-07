@@ -7,13 +7,13 @@ import {
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { mergeMap, Observable } from 'rxjs';
-import { RoleName } from '../common/constants';
-import type { AuthedRequest } from '../common/rbac/auth-user';
-import { ActivityLogsService } from './activity-logs.service';
+import { RoleName } from '../../common/constants';
+import type { AuthedRequest } from '../../common/rbac/auth-user';
+import { ActivityLogsService } from '../activity-logs.service';
 import {
   LOG_ACTIVITY_KEY,
   type LogActivityOptions,
-} from './log-activity.decorator';
+} from '../decorators/log-activity.decorator';
 
 const STAFF_ROLES = new Set<RoleName>([RoleName.ADMIN, RoleName.LIBRARIAN]);
 const ACTION_BY_METHOD: Record<string, string> = {

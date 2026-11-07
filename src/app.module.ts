@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -13,7 +12,7 @@ import { dbSsl } from './database/ssl';
 import { LoansModule } from './loans/loans.module';
 import { MembersModule } from './members/members.module';
 import { NotificationsModule } from './notifications/notifications.module';
-import { ObservabilityModule } from './observability/observability.module';
+import { ObservabilityModule } from './common/observability/observability.module';
 import { PaymentsModule } from './payments/payments.module';
 import { UsersModule } from './users/users.module';
 
@@ -51,7 +50,6 @@ import { UsersModule } from './users/users.module';
     PaymentsModule,
     NotificationsModule,
     DashboardModule,
-    ActivityLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

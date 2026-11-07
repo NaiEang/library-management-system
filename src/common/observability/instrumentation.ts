@@ -10,7 +10,7 @@ import {
   SimpleSpanProcessor,
   type SpanProcessor,
 } from '@opentelemetry/sdk-trace';
-import { traceStore } from './observability/trace-store';
+import { traceStore } from './trace-store';
 
 // Polling endpoints for the telemetry UI itself would drown out real traffic
 const UNTRACED_PATHS = ['/metrics', '/observability', '/health', '/api/docs'];

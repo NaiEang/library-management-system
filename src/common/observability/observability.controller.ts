@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
-import { RoleName } from '../common/constants';
-import { Public, Roles } from '../common/rbac/roles.decorator';
+import { RoleName } from '../constants';
+import { Public, Roles } from '../rbac/roles.decorator';
 import { appLogger } from './app-logger';
 import { MetricsService } from './metrics.service';
 import { traceStore } from './trace-store';

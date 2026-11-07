@@ -8,7 +8,7 @@ import {
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
-import { LogActivity } from '../src/activity-logs/log-activity.decorator';
+import { LogActivity } from '../src/dashboard/decorators/log-activity.decorator';
 import { as, createTestApp } from './setup/app';
 import { USERS } from './setup/fixtures';
 
