@@ -1,14 +1,89 @@
-version: '3.8'
+# Local stack for LibraFlow.
+#   docker compose up -d                          → Postgres + Redis (what the API and E2E tests need)
+#   docker compose --profile app up -d            → also the API on :3000, built from ./Dockerfile
+#   docker compose --profile observability up -d  → also Jaeger, Prometheus and Grafana
+# Ports and credentials match .env.example. Skip `postgres` if one already listens on 5432.
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: libraflow-postgres
+    environment:
+      POSTGRES_USER: libraflow
+      POSTGRES_PASSWORD: libraflow
+      POSTGRES_DB: libraflow_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Creates libraflow_test for the E2E suite on first start
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U libraflow -d libraflow_dev']
+      interval: 5s
+      retries: 10
+
   redis:
     image: redis:alpine
     container_name: libraflow-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     restart: always
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      retries: 10
+
+  api:
+    profiles: ['app']
+    build: .
+    container_name: libraflow-api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://libraflow:libraflow@postgres:5432/libraflow_dev
+      DB_SSL: 'false'
+      REDIS_HOST: redis
+      LOG_FILE: logs/app.log
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---- observability (optional) ----
+  jaeger:
+    profiles: ['observability']
+    image: jaegertracing/jaeger:2.5.0
+    ports:
+      - '16686:16686' # UI
+      - '4318:4318' # OTLP/HTTP; on the host set OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces
+
+  prometheus:
+    profiles: ['observability']
+    image: prom/prometheus:v3.3.0
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - '9090:9090'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  grafana:
+    profiles: ['observability']
+    image: grafana/grafana:11.6.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    ports:
+      - '3001:3000'
+    depends_on:
+      - prometheus
 
 volumes:
+  postgres_data:
   redis_data:

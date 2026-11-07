@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToOne, JoinColumn, Relation, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToOne, JoinColumn, type Relation, OneToMany } from 'typeorm';
 import { Role } from './role.entity';
 import { Member } from '../../members/entities/member.entity';
 import { ActivityLog } from '../../dashboard/entities/activity-log.entity';
