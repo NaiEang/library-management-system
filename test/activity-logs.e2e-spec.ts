@@ -15,6 +15,12 @@ import { USERS } from './setup/fixtures';
 // Stands in for handlers other modules will write, to pin down what @LogActivity does
 @Controller('probe-loans')
 class ProbeController {
+  // A plain write with no @LogActivity, for checking who gets logged
+  @Post()
+  create() {
+    return { id: '1' };
+  }
+
   @Patch(':id/approve')
   @LogActivity({ action: 'APPROVE', entityType: 'Loan' })
   approve(@Param('id') id: string) {
@@ -120,9 +126,8 @@ describe('Activity logs (e2e)', () => {
         .set(as(USERS.librarian))
         .expect(200);
       await request(server())
-        .post('/loans')
+        .post('/probe-loans')
         .set(as(USERS.member))
-        .send({})
         .expect(201);
       await request(server()).post('/books').send({}).expect(201);
       await request(server())
