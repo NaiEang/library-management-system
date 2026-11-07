@@ -1,124 +1,153 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LibraFlow — Library Management System API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The backend API for LibraFlow, a library management system. It's built with [NestJS](https://nestjs.com), TypeORM, PostgreSQL (Supabase), and BullMQ on Redis.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- **Users & roles**: staff accounts and role management
+- **Members**: library member records
+- **Books**: books, authors, categories, and individual book copies
+- **Loans**: loan requests, approval, and returns (request → approve → return)
+- **Payments**: fines and payment records
+- **Notifications**: member notifications
+- **Dashboard**: activity logs and overview data
+- **Swagger docs** at `/api/docs`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Tech stack
 
-## Project setup
+| Layer      | Technology                         |
+| ---------- | ---------------------------------- |
+| Framework  | NestJS 12, TypeScript              |
+| Database   | PostgreSQL (Supabase) via TypeORM  |
+| Queue      | BullMQ + Redis                     |
+| Validation | class-validator, class-transformer |
+| Docs       | @nestjs/swagger                    |
+| Testing    | Vitest, Supertest                  |
+| Lint       | oxlint, Prettier                   |
 
-```bash
-$ npm install
+## Project structure
+
+```
+src/
+├── auth/            # Authentication
+├── users/           # Users & roles
+├── members/         # Library members
+├── books/           # Books, authors, categories, copies
+├── loans/           # Loans & loan items
+├── payments/        # Payments / fines
+├── notifications/   # Notifications
+├── dashboard/       # Activity logs & dashboard
+├── common/          # Shared utilities
+├── database/
+│   ├── data-source.ts   # TypeORM CLI data source
+│   └── migrations/      # Database migrations
+├── app.module.ts
+└── main.ts
 ```
 
-## Compile and run the project
+## Environment variables
+
+Copy the example file and fill in the values:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+| Variable                 | Description                                   | Example                  |
+| ------------------------ | --------------------------------------------- | ------------------------ |
+| `PORT`                   | HTTP port the API listens on                  | `3000`                   |
+| `DATABASE_URL`           | PostgreSQL (Supabase) connection string       | `postgresql://...`       |
+| `JWT_SECRET`             | Secret used to sign JWTs                      | `change-me`              |
+| `SHARED_SERVICE_API_KEY` | API key for service-to-service calls (`x-api-key` header) | `change-me` |
+| `REDIS_HOST`             | Redis host for BullMQ                         | `localhost`              |
+| `REDIS_PORT`             | Redis port                                    | `6379`                   |
+
+The database connects with SSL enabled, as Supabase requires.
+
+## Running with Docker (recommended)
+
+You need Docker with Compose v2.
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env      # then set DATABASE_URL and the secrets
+docker compose up -d --build
 ```
 
-## Deployment
+This starts two services:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+- **app**: the NestJS API at http://localhost:3000
+- **redis**: Redis 7 at `localhost:6379`, with data stored in the `redis_data` volume
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Inside the compose network, `REDIS_HOST` is set to `redis` automatically, so you don't need to change it in `.env`.
+
+Useful commands:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+docker compose logs -f app     # follow API logs
+docker compose ps              # service status
+docker compose down            # stop everything
+docker compose down -v         # stop and delete the Redis volume
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
+Run migrations from your host machine. The runtime image doesn't include the TypeORM CLI.
 
 ```bash
-$ npm install @nestjs/observe
+npm run migration:run
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+## Running locally (without Docker for the app)
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+Requirements: Node.js 24+ and npm.
 
-## Resources
+```bash
+npm install
+cp .env.example .env
 
-Check out a few resources that may come in handy when working with NestJS:
+# start only Redis in Docker
+docker compose up -d redis
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# apply database migrations
+npm run migration:run
 
-## Support
+# start the API
+npm run start:dev      # watch mode
+npm run start          # normal
+npm run build && npm run start:prod   # production build
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## API documentation
 
-## Stay in touch
+Once the app is running, open **http://localhost:3000/api/docs** for Swagger UI. It supports both Bearer (JWT) and `x-api-key` authentication.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Main route groups:
 
-## License
+| Route              | Description                                     |
+| ------------------ | ----------------------------------------------- |
+| `/auth`            | Authentication                                  |
+| `/users`           | User CRUD                                       |
+| `/members`         | Member CRUD                                     |
+| `/books`           | Book CRUD                                       |
+| `/loans`           | `POST /request`, `PATCH /:id/approve`, `PATCH /:id/return` |
+| `/payments`        | Payment CRUD                                    |
+| `/notifications`   | Notifications                                   |
+| `/dashboard`       | Dashboard & activity logs                       |
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Database migrations
+
+```bash
+npm run migration:generate -- src/database/migrations/<MigrationName>
+npm run migration:run
+npm run migration:revert
+```
+
+`synchronize` is disabled, so every schema change needs a migration.
+
+## Tests & linting
+
+```bash
+npm run test        # unit tests
+npm run test:e2e    # e2e tests
+npm run test:cov    # coverage
+npm run lint        # oxlint
+npm run format      # prettier
+```
