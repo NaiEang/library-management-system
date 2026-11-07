@@ -1,26 +1,82 @@
-import { Injectable } from '@nestjs/common';
+
+import {
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { Notification } from './entities/notification.entity';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { UpdateNotificationDto } from './dto/update-notification.dto';
 
 @Injectable()
 export class NotificationsService {
-  create(createNotificationDto: CreateNotificationDto) {
-    return 'This action adds a new notification';
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationRepository: Repository<Notification>,
+  ) {}
+
+  // Create in-app notification
+  async create(
+  createNotificationDto: CreateNotificationDto,
+): Promise<Notification> {
+  const notification = this.notificationRepository.create({
+    ...createNotificationDto,
+    readAt: null,
+  });
+
+  return this.notificationRepository.save(notification);
+}
+
+  // Get user's notifications
+  async findAll(userId: string): Promise<Notification[]> {
+    return this.notificationRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  findAll() {
-    return `This action returns all notifications`;
+  // Get unread count
+  async getUnreadCount(userId: string): Promise<number> {
+    return this.notificationRepository.count({
+      where: {
+        userId,
+        readAt: IsNull(),
+      },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} notification`;
+  // Mark one notification as read
+  async markAsRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<void> {
+    const notification = await this.notificationRepository.findOne({
+      where: {
+        id: notificationId,
+        userId,
+      },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    if (!notification.readAt) {
+      notification.readAt = new Date();
+      await this.notificationRepository.save(notification);
+    }
   }
 
-  update(id: number, updateNotificationDto: UpdateNotificationDto) {
-    return `This action updates a #${id} notification`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} notification`;
+  // Mark all notifications as read
+  async markAllAsRead(userId: string): Promise<void> {
+    await this.notificationRepository.update(
+      {
+        userId,
+        readAt: IsNull(),
+      },
+      {
+        readAt: new Date(),
+      },
+    );
   }
 }

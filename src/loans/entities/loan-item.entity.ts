@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { Loan } from './loan.entity';
 import { BookCopy } from '../../books/entities/book-copy.entity';
 
@@ -13,19 +13,19 @@ export class LoanItem {
   @Column({ name: 'book_copy_id', type: 'bigint' })
   bookCopyId: string;
 
-  @Column({ name: 'borrowed_at', type: 'timestamp', default: () => 'NOW()' })
-  borrowedAt: Date;
+  @Column({ name: 'borrowed_at', type: 'timestamp', nullable: true })
+  borrowedAt: Date | null;
 
-  @Column({ name: 'due_date', type: 'timestamp' })
-  dueDate: Date;
+  @Column({ name: 'due_date', type: 'timestamp', nullable: true })
+  dueDate: Date | null;
 
   @Column({ name: 'returned_at', type: 'timestamp', nullable: true })
   returnedAt: Date | null;
 
-  @Column({ type: 'varchar', length: 30, default: 'borrowed' })
-  status: string;
+  @Column({ type: 'varchar' })
+  status: string; // e.g., 'PENDING', 'BORROWED', 'RETURNED', 'OVERDUE'
 
-  @Column({ name: 'fine_amount', type: 'decimal', precision: 10, scale: 2, default: 0.0 })
+  @Column({ name: 'fine_amount', type: 'numeric', precision: 10, scale: 2, default: 0 })
   fineAmount: number;
 
   @CreateDateColumn({ name: 'created_at' })
@@ -34,11 +34,11 @@ export class LoanItem {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Loan, (loan) => loan.items)
+  @ManyToOne(() => Loan, (loan) => loan.loanItems, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'loan_id' })
-  loan: Loan;
+  loan: Relation<Loan>;
 
-  @ManyToOne(() => BookCopy, (copy) => copy.loanItems)
+  @ManyToOne(() => BookCopy, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'book_copy_id' })
-  bookCopy: BookCopy;
+  bookCopy: Relation<BookCopy>;
 }

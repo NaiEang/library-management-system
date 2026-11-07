@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, type Relation } from 'typeorm';
 import { Member } from '../../members/entities/member.entity';
 import { LoanItem } from './loan-item.entity';
 
@@ -10,17 +10,17 @@ export class Loan {
   @Column({ name: 'member_id', type: 'bigint' })
   memberId: string;
 
-  @Column({ name: 'loan_code', type: 'varchar', length: 50, unique: true })
+  @Column({ name: 'loan_code', type: 'varchar', nullable: true })
   loanCode: string;
 
-  @Column({ name: 'loan_date', type: 'timestamp', default: () => 'NOW()' })
+  @Column({ name: 'loan_date', type: 'timestamp', nullable: true })
   loanDate: Date;
 
-  @Column({ type: 'varchar', length: 30, default: 'active' })
-  status: string;
+  @Column({ type: 'varchar' })
+  status: string; // e.g., 'PENDING', 'ACTIVE', 'COMPLETED'
 
   @Column({ type: 'text', nullable: true })
-  notes: string;
+  notes: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -28,10 +28,10 @@ export class Loan {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Member, (member) => member.loans)
+  @ManyToOne(() => Member, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'member_id' })
-  member: Member;
+  member: Relation<Member>;
 
-  @OneToMany(() => LoanItem, (item) => item.loan, { cascade: true })
-  items: LoanItem[];
+  @OneToMany(() => LoanItem, (loanItem) => loanItem.loan)
+  loanItems: Relation<LoanItem[]>;
 }
