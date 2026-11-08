@@ -1,3 +1,10 @@
+// Matches roles.name
+export enum RoleName {
+  ADMIN = 'admin',
+  LIBRARIAN = 'librarian',
+  MEMBER = 'member',
+}
+
 export enum UserStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',

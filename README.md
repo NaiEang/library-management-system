@@ -1,124 +1,95 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LibraFlow
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Library management system: a NestJS API (`src/`) on Postgres (Supabase) and Redis/BullMQ. Every request is traced (OpenTelemetry), logged (JSON lines with trace
+ids) and measured (Prometheus), and every admin/librarian write lands in `activity_logs`.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Run it locally
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+You need Postgres and Redis on their default ports: Homebrew services, or `docker compose up -d`.
 
 ```bash
-$ npm install
+cp .env.example .env     # local defaults; nothing here touches Supabase
+npm install
+npm run seed:dev         # builds the schema in the LOCAL db and fills ~4 months of dummy data
+npm run start:dev        # http://localhost:3000, Swagger at /api/docs
+npm run simulate -- 300  # optional: 5 min of dummy traffic for traces and metrics (other terminal)
 ```
 
-## Compile and run the project
+Until JWT login lands, `DEV_AUTH=true` lets an `x-user-id` header choose the acting user
+(`GET /dev/users` lists them). Keep it off anywhere but local dev and tests.
 
-```bash
-# development
-$ npm run start
+`seed:dev` and the E2E setup refuse to run against anything but localhost or Docker, so a
+Supabase `DATABASE_URL` is never reset.
 
-# watch mode
-$ npm run start:dev
+## Scripts
 
-# production mode
-$ npm run start:prod
+| Script | What it does |
+|---|---|
+| `npm run start:dev` | API in watch mode |
+| `npm run seed:dev` | Rebuild the local schema from the entities and seed dummy data |
+| `npm run simulate -- <seconds>` | Dummy traffic against the running API (after a build) |
+| `npm test` | Unit tests |
+| `npm run test:e2e` | E2E tests against a local `libraflow_test` database ([below](#tests)) |
+
+## Dashboard, activity logs and roles
+
+| Endpoint | Who | Notes |
+|---|---|---|
+| `GET /dashboard/stats` | admin, librarian | Stat cards, copies and loan items by status, 30-day loan trend, top books, category usage, recent activity |
+| `GET /activity-logs` | admin, librarian | `page`, `limit` (≤100), `action`, `entityType`, `userId`, `role`, `from`, `to`, `search` |
+| `GET /activity-logs/facets` | admin, librarian | Values and counts for the filter dropdowns |
+| `GET /observability/{metrics,traces,logs}` | admin | Recent metrics, traces and logs as JSON |
+| `GET /metrics`, `GET /health` | public | Prometheus scrape target and health check |
+
+**Activity logs are automatic.** `ActivityLogInterceptor` records every successful
+POST/PUT/PATCH/DELETE by an admin or librarian: action from the method (CREATE/UPDATE/DELETE),
+entity from the controller path (`loans` → `Loan`), id from the result or `:id`, plus IP and a
+readable description. Handlers can refine it:
+
+```ts
+@Patch(':id/approve')
+@LogActivity({ action: 'APPROVE' })           // "librarian2 approved Loan #812 "LN-000812""
+approve(...) {}
+
+@Post('login')
+@LogActivity({ skip: true })                   // then call activityLogsService.record(...) yourself
+login(...) {}
 ```
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Roles.** `@Roles(RoleName.ADMIN, RoleName.LIBRARIAN)` plus the global `RolesGuard`
+(`src/common/rbac`) check `request.user.role`. Whatever auth sets `request.user` must use
+the `AuthUser` shape `{ id, username, role }`, and a global JWT guard should skip `@Public()`
+routes.
 
 ## Observability
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+| Signal | Where | Later |
+|---|---|---|
+| Traces | OpenTelemetry: HTTP → `Controller.handler` → service spans → Postgres. The latest 500 are kept in memory for `GET /observability/traces` | Set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` to send them to Jaeger or Tempo |
+| Logs | JSON lines with `traceId`/`spanId` in `LOG_FILE`, plus `GET /observability/logs` | Ship the file with Promtail or Vector |
+| Metrics | `/metrics`: RED per route, `libraflow_book_copies`, `libraflow_loan_items`, `libraflow_overdue_loan_items`, `libraflow_activity_logs_written_total` | `docker compose --profile observability up -d` (Prometheus :9090, Grafana :3001, Jaeger :16686) |
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+`src/common/observability/instrumentation.ts` must stay the first import in `main.ts`.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+## Tests
 
-To add it to this project:
+`npm run test:e2e` rebuilds `libraflow_test` from the entities, loads small fixtures with known
+numbers (`test/setup/fixtures.ts`), and boots the real `AppModule`. It expects
+`postgres://libraflow:libraflow@localhost:5432/libraflow_test` (Docker creates it; with Homebrew run
+`createdb -O libraflow libraflow_test`), or set `TEST_DATABASE_URL`. CI runs the same suite against a
+Postgres service container.
+
+## Docker
 
 ```bash
-$ npm install @nestjs/observe
+docker compose up -d                          # Postgres + Redis
+docker compose --profile app up -d --build    # + the API image
+docker compose --profile observability up -d  # + Jaeger, Prometheus, Grafana
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+## Database note
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+`src/database/migrations/1793626719884-InitialSchema.ts` only alters tables that already exist in
+Supabase. It cannot build an empty database, and it drops the hand-written CHECK constraints and
+indexes there. Local and test databases are therefore built with `synchronize` from the entities.
+A baseline migration that creates the tables would let `migration:run` work everywhere.
