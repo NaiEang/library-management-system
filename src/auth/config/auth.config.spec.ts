@@ -31,6 +31,12 @@ describe('validateAuthEnv', () => {
     expect(config.depositAmount).toBe(7.5);
   });
 
+  it('needs only JWT_ACCESS_SECRET: FRONTEND_ORIGIN defaults (backend-only project)', () => {
+    expect(
+      validateAuthEnv({ JWT_ACCESS_SECRET: goodSecret }).frontendOrigin,
+    ).toBe('http://localhost:5173');
+  });
+
   it('rejects a missing secret', () => {
     expect(() =>
       validateAuthEnv({ FRONTEND_ORIGIN: 'http://localhost:5173' }),

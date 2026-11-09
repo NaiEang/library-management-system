@@ -35,8 +35,11 @@ class AuthEnv {
   @MinLength(32)
   JWT_ACCESS_SECRET: string;
 
+  // Only browser protections use it (CORS, the Origin check on cookie routes).
+  // The project is backend-only for now, so it's optional.
+  @IsOptional()
   @IsString()
-  FRONTEND_ORIGIN: string;
+  FRONTEND_ORIGIN = 'http://localhost:5173';
 
   @IsOptional()
   @Matches(DURATION, { message: DURATION_MESSAGE })
