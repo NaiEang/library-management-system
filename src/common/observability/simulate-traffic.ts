@@ -1,8 +1,8 @@
-// Sends realistic dummy traffic to a running local API (DEV_AUTH=true) so traces, logs
-// and metrics have something to show. `npm run simulate -- 120` runs for 120s (default: until Ctrl+C).
+// Sends realistic dummy traffic to a running local API seeded with `npm run seed:dev`,
+// so traces, logs and metrics have something to show. It logs in as the seeded
+// accounts. `npm run simulate -- 120` runs for 120s (default: until Ctrl+C).
 import 'dotenv/config';
 
-type DevUser = { id: string; role: 'admin' | 'librarian' | 'member' };
 type Scenario = { name: string; weight: number; run: () => Promise<unknown> };
 
 const BASE =
@@ -13,18 +13,43 @@ const WORKERS = Number(process.env.SIM_WORKERS ?? 4);
 const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 const id = (max: number) => 1 + Math.floor(Math.random() * max);
 const stats = new Map<string, number>();
+const DEV_PASSWORD = process.env.SEED_DEV_PASSWORD ?? 'libraflow-dev-password';
+// Access tokens last 15 minutes; log in again well before that
+const TOKEN_REFRESH_MS = 10 * 60_000;
+
+// Seeded accounts (see dev-seed.ts). A token is fetched on first use.
+const sessions = new Map<string, { token: string; at: number }>();
+
+async function tokenFor(email: string): Promise<string> {
+  const session = sessions.get(email);
+  if (session && Date.now() - session.at < TOKEN_REFRESH_MS)
+    return session.token;
+  const response = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password: DEV_PASSWORD }),
+  });
+  const body = (await response.json()) as { accessToken?: string };
+  if (!body.accessToken)
+    throw new Error(
+      `Login as ${email} failed (${response.status}): run \`npm run seed:dev\` first`,
+    );
+  sessions.set(email, { token: body.accessToken, at: Date.now() });
+  return body.accessToken;
+}
 
 async function call(
-  userId: string | null,
+  email: string | null,
   method: string,
   path: string,
   body?: unknown,
 ) {
+  const token = email ? await tokenFor(email) : null;
   const response = await fetch(`${BASE}${path}`, {
     method,
     headers: {
       'content-type': 'application/json',
-      ...(userId ? { 'x-user-id': userId } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -35,17 +60,13 @@ async function call(
 }
 
 async function main() {
-  const users = (await (await fetch(`${BASE}/dev/users`)).json()) as DevUser[];
-  if (!Array.isArray(users))
-    throw new Error(
-      `${BASE}/dev/users is unavailable: start the API with DEV_AUTH=true`,
-    );
-  const ids = (role: DevUser['role']) =>
-    users.filter((user) => user.role === role).map((user) => user.id);
-  const admins = ids('admin');
-  const librarians = ids('librarian');
-  const members = ids('member');
+  const email = (name: string) => `${name}@libraflow.local`;
+  const admins = [email('admin')];
+  const librarians = [1, 2, 3, 4].map((n) => email(`librarian${n}`));
+  const members = [1, 2, 3].map((n) => email(`member${n}`));
   const staff = [...admins, ...librarians];
+  // Log in once up front, so a missing seed fails fast with a clear message
+  await Promise.all([...staff, ...members].map(tokenFor));
 
   const scenarios: Scenario[] = [
     {

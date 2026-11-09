@@ -9,14 +9,20 @@ You need Postgres and Redis on their default ports: Homebrew services, or `docke
 
 ```bash
 cp .env.example .env     # local defaults; nothing here touches Supabase
+# then set JWT_ACCESS_SECRET in .env (the app refuses the placeholder):
+#   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 npm install
 npm run seed:dev         # builds the schema in the LOCAL db and fills ~4 months of dummy data
 npm run start:dev        # http://localhost:3000, Swagger at /api/docs
 npm run simulate -- 300  # optional: 5 min of dummy traffic for traces and metrics (other terminal)
 ```
 
-Until JWT login lands, `DEV_AUTH=true` lets an `x-user-id` header choose the acting user
-(`GET /dev/users` lists them). Keep it off anywhere but local dev and tests.
+Every route needs a login unless it's marked `@Public()`. Log in with `POST /auth/login`
+and send `Authorization: Bearer <accessToken>` (tokens last 15 minutes). After `seed:dev`,
+the accounts are `admin@libraflow.local`, `librarian1..4@libraflow.local` and
+`member1..3@libraflow.local`, all with the password `libraflow-dev-password` (set
+`SEED_DEV_PASSWORD` to change it). On a real database, create the first admin with
+`npm run seed:admin` instead.
 
 `seed:dev` and the E2E setup refuse to run against anything but localhost or Docker, so a
 Supabase `DATABASE_URL` is never reset.
@@ -56,10 +62,11 @@ approve(...) {}
 login(...) {}
 ```
 
-**Roles.** `@Roles(RoleName.ADMIN, RoleName.LIBRARIAN)` plus the global `RolesGuard`
-(`src/common/rbac`) check `request.user.role`. Whatever auth sets `request.user` must use
-the `AuthUser` shape `{ id, username, role }`, and a global JWT guard should skip `@Public()`
-routes.
+**Roles.** The auth module (`src/auth`) registers a global JWT guard and a global
+`RolesGuard`. `@Roles(RoleName.ADMIN, RoleName.LIBRARIAN)` restricts a route, `@Public()`
+opens it to guests, and a route with neither accepts any logged-in user, members included.
+`request.user` (and `@CurrentUser()`) is `{ id, username, role, memberId? }`, loaded from the
+database on every request; it is undefined on `@Public()` routes.
 
 ## Observability
 

@@ -3,6 +3,7 @@
 // refuses to run against anything but localhost/Docker. `npm run seed:dev`
 import 'dotenv/config';
 import { faker } from '@faker-js/faker';
+import { PasswordService } from '../../auth/password/password.service';
 import { describeActivity } from '../../dashboard/describe-activity';
 import { insertRows, syncSequence, type Row } from '../insert-rows';
 import { localDataSource, resetSchema } from '../local-db';
@@ -18,8 +19,9 @@ const NOTIFICATION_DAYS = 30;
 const LOAN_DAYS = 14;
 const FINE_PER_DAY = 0.25;
 const DEPOSIT = 10;
-// Seeded accounts cannot log in until auth hashes real passwords
-const NO_LOGIN = '!dev-seed-no-login';
+// Every seeded account logs in with this password (local databases only; the
+// seed refuses anything else). Override it with SEED_DEV_PASSWORD.
+const DEV_PASSWORD = process.env.SEED_DEV_PASSWORD ?? 'libraflow-dev-password';
 
 type Staff = { id: number; username: string; ip: string };
 type Member = {
@@ -75,7 +77,7 @@ const CATEGORIES = [
   ['Languages', 'Dictionaries, grammar and language learning'],
 ];
 
-function build() {
+function build(passwordHash: string) {
   const roles: Row[] = [
     ['admin', 'Full access, including observability'],
     ['librarian', 'Runs circulation, payments and the catalog'],
@@ -106,7 +108,7 @@ function build() {
       role_id: roleId,
       username: name,
       email: `${name}@libraflow.local`,
-      password: NO_LOGIN,
+      password_hash: passwordHash,
       first_name: first,
       last_name: last,
       phone: `+855 ${faker.string.numeric(2)} ${faker.string.numeric(3)} ${faker.string.numeric(3)}`,
@@ -136,25 +138,33 @@ function build() {
   const memberRows: Row[] = [];
   const members: Member[] = [];
   for (let i = 0; i < 120; i++) {
-    const joinedMs = ago(between(1, 420));
+    // The first three are predictable accounts (member1..3@libraflow.local) with
+    // an active membership, for logging in by hand and for `npm run simulate`.
+    const knownMember = i < 3;
+    const joinedMs = knownMember ? ago(between(1, 200)) : ago(between(1, 420));
     const expiryMs = joinedMs + 365 * DAY;
-    const userStatus = faker.helpers.weightedArrayElement([
-      { value: 'active', weight: 95 },
-      { value: 'inactive', weight: 3 },
-      { value: 'suspended', weight: 2 },
-    ]);
+    // Account status is active or disabled (an admin's decision)
+    const userStatus = knownMember
+      ? 'active'
+      : faker.helpers.weightedArrayElement([
+          { value: 'active', weight: 95 },
+          { value: 'disabled', weight: 5 },
+        ]);
     const user = addUser(
       3,
       faker.person.firstName(),
       faker.person.lastName(),
       joinedMs,
-      undefined,
+      knownMember ? `member${i + 1}` : undefined,
       userStatus,
     );
-    const status =
-      expiryMs < NOW
+    // "blocked" here is the simulation's late-return penalty: stored as an
+    // active membership with blocked_until in the future, never as a status.
+    const status = knownMember
+      ? 'active'
+      : expiryMs < NOW
         ? 'expired'
-        : userStatus === 'suspended'
+        : userStatus === 'disabled'
           ? 'blocked'
           : faker.helpers.weightedArrayElement([
               { value: 'active', weight: 88 },
@@ -168,9 +178,12 @@ function build() {
       user_id: user.id,
       member_code: `MEM-${pad(id)}`,
       membership_date: dateOnly(joinedMs),
-      expiry_date: dateOnly(expiryMs),
-      membership_status: status,
+      // No expiry until the deposit is verified
+      expiry_date: status === 'pending_deposit' ? null : dateOnly(expiryMs),
+      membership_status: status === 'blocked' ? 'active' : status,
       deposit_amount: money(status === 'pending_deposit' ? 0 : DEPOSIT),
+      blocked_until:
+        status === 'blocked' ? at(NOW + between(3, 30) * DAY) : null,
       created_at: at(joinedMs),
       updated_at: at(joinedMs),
     });
@@ -680,7 +693,8 @@ async function main() {
   );
   await resetSchema(dataSource);
 
-  const tables = build();
+  const passwordHash = await new PasswordService().hash(DEV_PASSWORD);
+  const tables = build(passwordHash);
   for (const [table, rows] of Object.entries(tables))
     await insertRows(dataSource, table, rows);
   for (const table of Object.keys(tables).filter((t) => t !== 'book_authors'))
@@ -690,6 +704,9 @@ async function main() {
     Object.fromEntries(
       Object.entries(tables).map(([table, rows]) => [table, rows.length]),
     ),
+  );
+  console.log(
+    `Log in as admin@libraflow.local, librarian1..4@libraflow.local or member1..3@libraflow.local with the dev password (SEED_DEV_PASSWORD, default "${DEV_PASSWORD === 'libraflow-dev-password' ? DEV_PASSWORD : '<your SEED_DEV_PASSWORD>'}").`,
   );
   await dataSource.destroy();
 }

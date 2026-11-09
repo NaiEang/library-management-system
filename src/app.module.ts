@@ -6,7 +6,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BooksModule } from './books/books.module';
-import { RbacModule } from './common/rbac/rbac.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { dbSsl } from './database/ssl';
 import { LoansModule } from './loans/loans.module';
@@ -41,7 +40,6 @@ import { UsersModule } from './users/users.module';
       }),
     }),
     ObservabilityModule,
-    RbacModule,
     AuthModule,
     UsersModule,
     MembersModule,

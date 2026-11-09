@@ -40,7 +40,7 @@ export async function seedFixtures(dataSource: DataSource) {
     role_id: roleId,
     username,
     email: `${username}@test.local`,
-    password: '!test',
+    password_hash: '!test',
     first_name: username.split('.')[0],
     last_name: 'Test',
     phone: null,
@@ -90,13 +90,16 @@ export async function seedFixtures(dataSource: DataSource) {
       user(USERS.librarian, 2, 'librarian'),
       user(USERS.member, 3, 'member.one'),
       user(USERS.pendingMember, 3, 'member.two'),
-      user(USERS.inactiveMember, 3, 'member.three', 'inactive'),
+      user(USERS.inactiveMember, 3, 'member.three', 'disabled'),
     ],
-    members: [
-      [1, USERS.member, 'active', '10.00'],
-      [2, USERS.pendingMember, 'pending_deposit', '0.00'],
-      [3, USERS.inactiveMember, 'blocked', '10.00'],
-    ].map(([id, userId, status, deposit]) => ({
+    members: (
+      [
+        [1, USERS.member, 'active', '10.00', null],
+        [2, USERS.pendingMember, 'pending_deposit', '0.00', null],
+        // "Blocked" is not a status: an active membership with a late-return penalty
+        [3, USERS.inactiveMember, 'active', '10.00', at(7 * DAY)],
+      ] as [number, number, string, string, Date | null][]
+    ).map(([id, userId, status, deposit, blockedUntil]) => ({
       id,
       user_id: userId,
       member_code: `MEM-${id}`,
@@ -108,6 +111,7 @@ export async function seedFixtures(dataSource: DataSource) {
         .slice(0, 10),
       membership_status: status,
       deposit_amount: deposit,
+      blocked_until: blockedUntil,
       ...created,
     })),
     categories: [

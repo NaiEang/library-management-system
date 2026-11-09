@@ -87,9 +87,10 @@ export class DashboardService {
     >(`
       SELECT
         COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE membership_status = 'active' AND expiry_date >= current_date)::int AS active,
+        COUNT(*) FILTER (WHERE membership_status = 'active' AND expiry_date >= current_date AND (blocked_until IS NULL OR blocked_until <= now()))::int AS active,
         COUNT(*) FILTER (WHERE membership_status = 'pending_deposit')::int AS "pendingDeposit",
-        COUNT(*) FILTER (WHERE membership_status = 'blocked')::int AS blocked,
+        -- "Blocked" is a late-return penalty (blocked_until), not a membership status
+        COUNT(*) FILTER (WHERE blocked_until > now())::int AS blocked,
         COALESCE(SUM(deposit_amount) FILTER (WHERE membership_status <> 'expired'), 0)::float AS "depositsHeld"
       FROM members`);
     return row;

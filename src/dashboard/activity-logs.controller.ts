@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RoleName } from '../common/constants';
-import { Roles } from '../common/rbac/roles.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { ActivityLogsService } from './activity-logs.service';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 

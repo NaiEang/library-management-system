@@ -11,7 +11,8 @@ import {
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
 import { RoleName } from '../constants';
-import { Public, Roles } from '../rbac/roles.decorator';
+import { Public } from '../../auth/decorators/public.decorator';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { appLogger } from './app-logger';
 import { MetricsService } from './metrics.service';
 import { traceStore } from './trace-store';

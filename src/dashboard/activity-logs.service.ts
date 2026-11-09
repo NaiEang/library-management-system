@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { AuthUser } from '../common/rbac/auth-user';
+import type { AuthUser } from '../auth/types/auth-user';
 import { ActivityLog } from './entities/activity-log.entity';
 import { MetricsService } from '../common/observability/metrics.service';
 import { withSpan } from '../common/observability/with-span';

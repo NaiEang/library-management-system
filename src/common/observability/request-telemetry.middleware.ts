@@ -1,6 +1,6 @@
 import { context } from '@opentelemetry/api';
 import type { NextFunction, Request, Response } from 'express';
-import type { AuthedRequest } from '../rbac/auth-user';
+import type { AuthedRequest } from '../../auth/types/auth-user';
 import { appLogger } from './app-logger';
 import type { MetricsService } from './metrics.service';
 

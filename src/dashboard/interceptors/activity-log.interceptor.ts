@@ -8,7 +8,7 @@ import { PATH_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { mergeMap, Observable } from 'rxjs';
 import { RoleName } from '../../common/constants';
-import type { AuthedRequest } from '../../common/rbac/auth-user';
+import type { AuthedRequest } from '../../auth/types/auth-user';
 import { ActivityLogsService } from '../activity-logs.service';
 import {
   LOG_ACTIVITY_KEY,

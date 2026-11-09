@@ -34,6 +34,15 @@ class ProbeController {
   }
 }
 
+// A write whose handler returns no id (the old scaffold PATCH /members/:id is gone)
+@Controller('members')
+class ProbeMembersController {
+  @Patch(':id')
+  update() {
+    return { ok: true };
+  }
+}
+
 type LogRow = {
   id: string;
   action: string;
@@ -61,7 +70,7 @@ describe('Activity logs (e2e)', () => {
     ).body.data[0] as LogRow;
 
   beforeAll(async () => {
-    app = await createTestApp([ProbeController]);
+    app = await createTestApp([ProbeController, ProbeMembersController]);
     db = app.get(DataSource);
   });
 
@@ -129,7 +138,8 @@ describe('Activity logs (e2e)', () => {
         .post('/probe-loans')
         .set(as(USERS.member))
         .expect(201);
-      await request(server()).post('/books').send({}).expect(201);
+      // Anonymous callers can't write at all now (global JWT guard)
+      await request(server()).post('/books').send({}).expect(401);
       await request(server())
         .post('/probe-loans/login')
         .set(as(USERS.admin))

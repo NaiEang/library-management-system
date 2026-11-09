@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { Observable } from 'rxjs';
-import type { AuthedRequest } from '../rbac/auth-user';
+import type { AuthedRequest } from '../../auth/types/auth-user';
 import { tracer } from './with-span';
 
 /**
