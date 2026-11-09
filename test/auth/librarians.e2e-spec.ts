@@ -97,7 +97,9 @@ describe('POST /users/librarians (e2e)', () => {
       role: 'librarian',
       membershipStatus: null,
     });
-    expect(String(res.headers['set-cookie']?.[0])).toMatch(/Max-Age=43200/);
+    const lifetime =
+      (Date.parse(res.body.refreshTokenExpiresAt) - Date.now()) / 1000;
+    expect(Math.abs(lifetime - 43200)).toBeLessThan(5);
     // A librarian still can't create librarians.
     await create(
       { ...librarian, email: 'x@libraflow.test', username: 'xlib' },

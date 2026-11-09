@@ -47,6 +47,8 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
   it.each([
     ['/auth/login', 'post'],
     ['/auth/register', 'post'],
+    ['/auth/refresh', 'post'],
+    ['/auth/logout', 'post'],
   ] as const)('%s is public: no lock', (path, method) => {
     expect(operation(path, method)).toBeDefined();
     expect(operation(path, method)?.security).toBeUndefined();
@@ -105,8 +107,10 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
         .sort(),
     ).toEqual([
       '/auth/login',
+      '/auth/logout',
       '/auth/me',
       '/auth/password',
+      '/auth/refresh',
       '/auth/register',
       '/users/librarians',
       '/users/members',
@@ -147,5 +151,12 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
       'currentPassword',
       'newPassword',
     ]);
+  });
+
+  it('refresh and logout take the refresh token in the body', () => {
+    for (const path of ['/auth/refresh', '/auth/logout']) {
+      expect(bodySchema(path)).toBe('#/components/schemas/RefreshTokenDto');
+    }
+    expect(schema('RefreshTokenDto').required).toEqual(['refreshToken']);
   });
 });
