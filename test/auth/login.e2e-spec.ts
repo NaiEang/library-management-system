@@ -266,6 +266,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
           membershipDate: '2026-11-01',
           expiryDate: null,
           depositAmount: 0,
+          depositVerifiedAt: null,
         },
       });
     });

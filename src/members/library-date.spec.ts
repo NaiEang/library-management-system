@@ -1,4 +1,4 @@
-import { isValidTimeZone, libraryToday } from './library-date';
+import { addYears, isValidTimeZone, libraryToday } from './library-date';
 
 describe('libraryToday', () => {
   const PHNOM_PENH = 'Asia/Phnom_Penh'; // UTC+7, no daylight saving
@@ -35,5 +35,20 @@ describe('isValidTimeZone', () => {
 
   it.each(['Phnom Penh', 'Mars/Olympus', ''])('rejects "%s"', (zone) => {
     expect(isValidTimeZone(zone)).toBe(false);
+  });
+});
+
+describe('addYears', () => {
+  it.each([
+    ['2026-11-09', '2027-11-09'],
+    ['2026-12-31', '2027-12-31'],
+    ['2028-02-29', '2029-02-28'],
+    ['2027-02-28', '2028-02-28'],
+  ])('%s + 1 year → %s', (date, expected) => {
+    expect(addYears(date, 1)).toBe(expected);
+  });
+
+  it('keeps Feb 29 when the target year is a leap year', () => {
+    expect(addYears('2024-02-29', 4)).toBe('2028-02-29');
   });
 });

@@ -5,6 +5,7 @@ const VERBS: Record<string, string> = {
   APPROVE: 'approved',
   REJECT: 'rejected',
   RETURN: 'checked in',
+  VERIFY_DEPOSIT: 'verified the deposit of',
 };
 
 export interface ActivityDescription {
