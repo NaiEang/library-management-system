@@ -1,19 +1,22 @@
+// Must stay the first import: it patches http and pg before anything loads them
+import './common/observability/instrumentation';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { configureApp } from './app.setup';
+import { appLogger } from './common/observability/app-logger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  app.enableCors();
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-    }),
+  const app = configureApp(
+    await NestFactory.create(AppModule, { logger: appLogger }),
   );
+  app.enableShutdownHooks();
+  // Leave a trace of why the API stopped; Nest's own handlers run after this one
+  for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
+    process.prependOnceListener(signal, () =>
+      appLogger.warn(`Received ${signal}, shutting down`, 'Bootstrap'),
+    );
+  }
 
   const config = new DocumentBuilder()
     .setTitle('LibraFlow API')
@@ -26,6 +29,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
+  appLogger.log(
+    `LibraFlow API on http://localhost:${port} (docs at /api/docs, metrics at /metrics)`,
+    'Bootstrap',
+  );
 }
-bootstrap();
+void bootstrap();

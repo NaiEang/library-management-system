@@ -1,60 +1,32 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthModule } from './auth/auth.module.js';
-import { UsersModule } from './users/users.module';
-import { MembersModule } from './members/members.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { BooksModule } from './books/books.module';
-import { LoansModule } from './loans/loans.module';
-import { PaymentsModule } from './payments/payments.module';
-import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { Payment } from './payments/entities/payment.entity';
-import { LoanItem } from './loans/entities/loan-item.entity';
-import { Loan } from './loans/entities/loan.entity';
-import { BookAuthor } from './books/entities/book-author.entity';
-import { BookCopy } from './books/entities/book-copy.entity';
-import { Category } from './books/entities/category.entity';
-import { Author } from './books/entities/author.entity';
-import { Book } from './books/entities/book.entity';
-import { Member } from './members/entities/member.entity';
-import { Role } from './users/entities/role.entity.js';
-import { User } from './users/entities/user.entity';
-import { ActivityLog } from './dashboard/entities/activity-log.entity';
-import { Notification } from './notifications/entities/notification.entity';
+import { dbSsl } from './database/ssl';
+import { LoansModule } from './loans/loans.module';
+import { MembersModule } from './members/members.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ObservabilityModule } from './common/observability/observability.module';
+import { PaymentsModule } from './payments/payments.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        entities: [
-          User,
-          Role,
-          Member,
-          Book,
-          Author,
-          Category,
-          BookCopy,
-          BookAuthor,
-          Loan,
-          LoanItem,
-          Payment,
-          ActivityLog,
-          Notification,
-        ],
+        // Each module registers its own entities with TypeOrmModule.forFeature(), so this file never changes for them
         autoLoadEntities: true,
         synchronize: false,
-        ssl: {
-          rejectUnauthorized: false,
-        },
+        ssl: dbSsl(configService.get<string>('DB_SSL')),
       }),
     }),
     BullModule.forRootAsync({
@@ -67,6 +39,7 @@ import { Notification } from './notifications/entities/notification.entity';
         },
       }),
     }),
+    ObservabilityModule,
     AuthModule,
     UsersModule,
     MembersModule,
@@ -79,4 +52,4 @@ import { Notification } from './notifications/entities/notification.entity';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}
