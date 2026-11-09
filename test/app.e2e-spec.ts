@@ -1,11 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+describe('Loans Module (e2e)', () => {
+  let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -13,17 +12,25 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+    
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  afterAll(async () => {
+    await app.close();
   });
 
-  afterEach(async () => {
-    await app.close();
+  it('Validation Case: Should reject loan request with missing data (400 Bad Request)', () => {
+    return request(app.getHttpServer())
+      .post('/loans/request')
+      .send({
+      })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.error).toEqual('Bad Request');
+        expect(res.body.message).toContain('memberId must be a string');
+      });
   });
 });
