@@ -5,6 +5,9 @@ import { TracingInterceptor } from './common/observability/tracing.interceptor';
 
 /** Shared by main.ts and the E2E tests so both boot the exact same pipeline. */
 export function configureApp<T extends INestApplication>(app: T): T {
+  // Security headers on every response (Nest's built-in, the same defaults as
+  // helmet 8). First, so even 404s and errors carry them.
+  app.useSecurityHeaders();
   app.enableCors();
   app.use(requestTelemetry(app.get(MetricsService)));
   app.useGlobalPipes(
