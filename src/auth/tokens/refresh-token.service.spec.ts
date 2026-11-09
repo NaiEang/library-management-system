@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { RoleName } from '../../common/constants';
 import { AuthConfig } from '../config/auth.config';
 import { RefreshToken } from '../entities/refresh-token.entity';
@@ -91,6 +91,25 @@ describe('RefreshTokenService.issue', () => {
   it('hashRefreshToken is SHA-256 hex', () => {
     expect(hashRefreshToken('abc')).toBe(
       'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    );
+  });
+});
+
+describe('RefreshTokenService.revokeAllForUser', () => {
+  it("revokes only the user's sessions that are still active, and can join a transaction", async () => {
+    const update = vi.fn(() => Promise.resolve({ affected: 2 }));
+    const service = new RefreshTokenService(
+      { manager: { update: vi.fn() } } as unknown as Repository<RefreshToken>,
+      config,
+    );
+    const transactionManager = { update } as unknown as EntityManager;
+    await expect(
+      service.revokeAllForUser('3', transactionManager),
+    ).resolves.toBe(2);
+    expect(update).toHaveBeenCalledWith(
+      RefreshToken,
+      { userId: '3', revokedAt: IsNull() },
+      { revokedAt: expect.any(Date) },
     );
   });
 });

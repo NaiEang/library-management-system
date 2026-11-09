@@ -12,9 +12,9 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
 
   const operation = (path: string, method: 'get' | 'post' | 'patch') =>
     doc.paths[path]?.[method];
-  const bodySchema = (path: string) =>
+  const bodySchema = (path: string, method: 'post' | 'patch' = 'post') =>
     (
-      operation(path, 'post')?.requestBody as {
+      operation(path, method)?.requestBody as {
         content: Record<string, { schema: { $ref: string } }>;
       }
     )?.content['application/json']?.schema.$ref;
@@ -57,6 +57,9 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
     ['/users/librarians', 'post'],
     ['/users/members', 'get'],
     ['/users/{id}/verify-deposit', 'patch'],
+    ['/users/{id}/status', 'patch'],
+    ['/users/{id}/reset-password', 'post'],
+    ['/auth/password', 'patch'],
   ] as const)('%s requires the bearer token', (path, method) => {
     expect(operation(path, method)?.security).toEqual([{ bearer: [] }]);
   });
@@ -103,9 +106,12 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
     ).toEqual([
       '/auth/login',
       '/auth/me',
+      '/auth/password',
       '/auth/register',
       '/users/librarians',
       '/users/members',
+      '/users/{id}/reset-password',
+      '/users/{id}/status',
       '/users/{id}/verify-deposit',
     ]);
   });
@@ -127,5 +133,19 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
     expect(
       operation('/users/{id}/verify-deposit', 'patch')?.requestBody,
     ).toBeUndefined();
+  });
+
+  it('documents the status and password-change bodies', () => {
+    expect(bodySchema('/users/{id}/status', 'patch')).toBe(
+      '#/components/schemas/SetAccountStatusDto',
+    );
+    expect(schema('SetAccountStatusDto').required).toEqual(['enabled']);
+    expect(bodySchema('/auth/password', 'patch')).toBe(
+      '#/components/schemas/ChangePasswordDto',
+    );
+    expect(schema('ChangePasswordDto').required).toEqual([
+      'currentPassword',
+      'newPassword',
+    ]);
   });
 });

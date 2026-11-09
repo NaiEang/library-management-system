@@ -25,9 +25,21 @@ const member: LoginCandidate = {
 };
 
 async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
+  const transactionManager = { id: 'tx' };
   const usersService = {
     findForLogin: vi.fn(() => Promise.resolve(candidate)),
     recordLogin: vi.fn(() => Promise.resolve()),
+    findPasswordHash: vi.fn(() => Promise.resolve('$argon2id$current')),
+    findProfile: vi.fn(() =>
+      Promise.resolve({
+        email: 'good.student@demo.com',
+        username: 'goodstudent',
+      }),
+    ),
+    updatePasswordHash: vi.fn(() => Promise.resolve()),
+    inTransaction: vi.fn((work: (m: unknown) => Promise<unknown>) =>
+      work(transactionManager),
+    ),
     registerMember: vi.fn(() =>
       Promise.resolve({
         id: '41',
@@ -40,12 +52,15 @@ async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
   };
   const passwordService = {
     hash: vi.fn(() => Promise.resolve('$argon2id$dummy')),
-    verify: vi.fn(() => Promise.resolve(passwordMatches)),
+    verify: vi.fn((_hash: string, _password: string) =>
+      Promise.resolve(passwordMatches),
+    ),
   };
   const refreshTokens = {
     issue: vi.fn(() =>
       Promise.resolve({ token: 'raw-refresh', expiresAt: new Date() }),
     ),
+    revokeAllForUser: vi.fn(() => Promise.resolve(2)),
   };
   const jwtService = { signAsync: vi.fn(() => Promise.resolve('signed.jwt')) };
   const audit = { record: vi.fn() };
@@ -65,6 +80,7 @@ async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
     refreshTokens,
     jwtService,
     audit,
+    transactionManager,
   };
 }
 
@@ -242,5 +258,80 @@ describe('AuthService.register', () => {
     await expect(service.register(dto)).rejects.toThrow(
       'Email already registered',
     );
+  });
+});
+
+describe('AuthService.changePassword', () => {
+  const user = {
+    id: '3',
+    username: 'goodstudent',
+    role: RoleName.MEMBER,
+    memberId: '30',
+  };
+  const dto = {
+    currentPassword: 'old long passphrase',
+    newPassword: 'a brand new passphrase',
+  };
+
+  it('checks the current password, hashes the new one and ends every session, in one transaction', async () => {
+    const {
+      service,
+      passwordService,
+      usersService,
+      refreshTokens,
+      transactionManager,
+    } = await setup(null);
+    passwordService.verify.mockImplementation(
+      (_hash: string, password: string) =>
+        Promise.resolve(password === dto.currentPassword),
+    );
+    await service.changePassword(user, dto);
+    expect(passwordService.hash).toHaveBeenLastCalledWith(dto.newPassword);
+    expect(usersService.updatePasswordHash).toHaveBeenCalledWith(
+      '3',
+      '$argon2id$dummy',
+      transactionManager,
+    );
+    expect(refreshTokens.revokeAllForUser).toHaveBeenCalledWith(
+      '3',
+      transactionManager,
+    );
+  });
+
+  it('a wrong current password → 400, nothing changes', async () => {
+    const { service, usersService, refreshTokens } = await setup(null, false);
+    await expect(service.changePassword(user, dto)).rejects.toThrow(
+      'Current password is incorrect',
+    );
+    expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
+    expect(refreshTokens.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('the same password again → 400', async () => {
+    const { service, usersService } = await setup(null, true);
+    await expect(service.changePassword(user, dto)).rejects.toThrow(
+      /must be different/,
+    );
+    expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['too short', 'short1', /at least 8/],
+    ['common', 'password1', /too common/],
+    ['equal to the username', 'GoodStudent', /email or username/],
+  ])('a new password that is %s → 400', async (_label, newPassword, rule) => {
+    const { service, passwordService, usersService } = await setup(null);
+    passwordService.verify.mockImplementation(
+      (_hash: string, password: string) =>
+        Promise.resolve(password === dto.currentPassword),
+    );
+    const error = await service
+      .changePassword(user, { ...dto, newPassword })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect(
+      JSON.stringify((error as BadRequestException).getResponse()),
+    ).toMatch(rule);
+    expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
   });
 });

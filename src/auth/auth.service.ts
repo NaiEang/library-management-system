@@ -19,6 +19,7 @@ import { LoginCandidate, UsersService } from '../users/users.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { authConfig } from './config/auth.config';
 import { LoginResponse, RegisterResponse } from './dto/auth-responses';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RegisterDto } from './dto/register.dto';
 import { checkPasswordPolicy } from './password/password-policy';
 import { PasswordService } from './password/password.service';
@@ -26,7 +27,7 @@ import {
   IssuedRefreshToken,
   RefreshTokenService,
 } from './tokens/refresh-token.service';
-import { JwtPayload } from './types/auth-user';
+import type { AuthUser, JwtPayload } from './types/auth-user';
 
 export interface LoginInput {
   email: string;
@@ -124,6 +125,38 @@ export class AuthService implements OnModuleInit {
       },
       refresh,
     };
+  }
+
+  // Any logged-in user. Ends every session of the user, so they log in again
+  // with the new password (an attacker holding an old session is locked out).
+  async changePassword(user: AuthUser, dto: ChangePasswordDto): Promise<void> {
+    const currentHash = await this.usersService.findPasswordHash(user.id);
+    // The guard already checked the user exists; a missing hash is bad data.
+    if (
+      !currentHash ||
+      !(await this.passwordService.verify(currentHash, dto.currentPassword))
+    ) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+    if (await this.passwordService.verify(currentHash, dto.newPassword)) {
+      throw new BadRequestException(
+        'The new password must be different from the current one',
+      );
+    }
+    const profile = await this.usersService.findProfile(user.id);
+    const problems = checkPasswordPolicy(dto.newPassword, {
+      email: profile?.email,
+      username: profile?.username,
+    });
+    if (problems.length > 0) {
+      throw new BadRequestException(problems);
+    }
+
+    const newHash = await this.passwordService.hash(dto.newPassword);
+    await this.usersService.inTransaction(async (manager) => {
+      await this.usersService.updatePasswordHash(user.id, newHash, manager);
+      await this.refreshTokens.revokeAllForUser(user.id, manager);
+    });
   }
 
   // Self sign-up: always a MEMBER whose membership waits for the deposit.

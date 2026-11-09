@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   Res,
@@ -14,15 +15,21 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { LogActivity } from '../dashboard/decorators/log-activity.decorator';
 import { UserProfileResponse } from '../users/mappers/user-profile.mapper';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
+import type { AuthUser } from './types/auth-user';
 import { Public } from './decorators/public.decorator';
 import { LoginResponse, RegisterResponse } from './dto/auth-responses';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RegisterDto } from './dto/register.dto';
-import { REGISTER_THROTTLE } from './throttling/auth-throttle';
+import {
+  PASSWORD_CHANGE_THROTTLE,
+  REGISTER_THROTTLE,
+} from './throttling/auth-throttle';
 import { AuthThrottlerGuard } from './throttling/auth-throttler.guard';
 import { REFRESH_COOKIE, refreshCookieOptions } from './tokens/refresh-cookie';
 
@@ -82,5 +89,20 @@ export class AuthController {
       throw new UnauthorizedException();
     }
     return profile;
+  }
+
+  // Ends all of this user's sessions: log in again with the new password.
+  @ApiBearerAuth()
+  @UseGuards(AuthThrottlerGuard)
+  @SkipThrottle({ email: true })
+  @Throttle(PASSWORD_CHANGE_THROTTLE)
+  @LogActivity({ action: 'UPDATE', entityType: 'Password' })
+  @Patch('password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<void> {
+    return this.authService.changePassword(user, dto);
   }
 }

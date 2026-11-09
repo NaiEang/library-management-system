@@ -151,6 +151,34 @@ export class UsersService {
     };
   }
 
+  // Runs work in one database transaction (e.g. a password change plus ending
+  // the user's sessions).
+  inTransaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
+    return this.usersRepository.manager.transaction(work);
+  }
+
+  // For password checks on an already-known user. The only other place that
+  // selects the hash is findForLogin.
+  async findPasswordHash(id: string): Promise<string | null> {
+    const user = await this.usersRepository.findOne({
+      where: { id },
+      select: { id: true, passwordHash: true },
+    });
+    return user?.passwordHash ?? null;
+  }
+
+  async updatePasswordHash(
+    id: string,
+    passwordHash: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await (manager ?? this.usersRepository.manager).update(
+      User,
+      { id },
+      { passwordHash },
+    );
+  }
+
   async recordLogin(id: string): Promise<void> {
     await this.usersRepository.update({ id }, { lastLoginAt: new Date() });
   }

@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { RoleName } from '../../common/constants';
 import { authConfig } from '../config/auth.config';
 import { RefreshToken } from '../entities/refresh-token.entity';
@@ -65,5 +65,19 @@ export class RefreshTokenService {
       ipAddress: ip?.slice(0, 45) ?? null,
     });
     return { token, expiresAt };
+  }
+
+  // Ends every session of a user (password change, reset, enable/disable).
+  // Pass a transaction's manager to make it part of that transaction.
+  async revokeAllForUser(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const { affected } = await (manager ?? this.refreshTokens.manager).update(
+      RefreshToken,
+      { userId, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+    return affected ?? 0;
   }
 }
