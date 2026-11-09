@@ -1,7 +1,8 @@
+// Matches roles.name (lowercase, as in the database)
 export enum RoleName {
-  ADMIN = 'ADMIN',
-  LIBRARIAN = 'LIBRARIAN',
-  MEMBER = 'MEMBER',
+  ADMIN = 'admin',
+  LIBRARIAN = 'librarian',
+  MEMBER = 'member',
 }
 
 const ROLE_NAMES = new Set<string>(Object.values(RoleName));

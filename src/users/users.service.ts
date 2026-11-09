@@ -25,6 +25,7 @@ import { normalizeEmail } from './normalize';
 // The minimum the auth guard needs on every request. Never includes the password hash.
 export interface AuthUserRecord {
   id: string;
+  username: string;
   status: string;
   roleName: string | null;
   memberId: string | null;
@@ -103,6 +104,7 @@ export class UsersService {
       relations: { role: true, member: true },
       select: {
         id: true,
+        username: true,
         status: true,
         role: { id: true, name: true },
         member: { id: true },
@@ -113,6 +115,7 @@ export class UsersService {
     }
     return {
       id: user.id,
+      username: user.username,
       status: user.status,
       roleName: user.role?.name ?? null,
       memberId: user.member?.id ?? null,

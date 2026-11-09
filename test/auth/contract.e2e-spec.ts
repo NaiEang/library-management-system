@@ -17,7 +17,7 @@ describe('Auth guard contract (e2e)', () => {
   let jwt: JwtService;
 
   // Signed by the app's own JwtService, so it uses the module's real settings.
-  const tokenFor = (sub: string, role = 'MEMBER') => jwt.sign({ sub, role });
+  const tokenFor = (sub: string, role = 'member') => jwt.sign({ sub, role });
   const get = (path: string, token?: string) => {
     const req = request(app.getHttpServer()).get(path);
     return token ? req.set('Authorization', `Bearer ${token}`) : req;
@@ -25,13 +25,22 @@ describe('Auth guard contract (e2e)', () => {
 
   beforeAll(async () => {
     const users = await Promise.all([
-      makeUser({ id: '1', role: 'ADMIN' }),
-      makeUser({ id: '2', role: 'LIBRARIAN' }),
-      makeUser({ id: '3', role: 'MEMBER', memberId: '30' }),
-      makeUser({ id: '4', role: 'MEMBER', status: 'disabled' }),
+      makeUser({ id: '1', role: 'admin' }),
+      makeUser({
+        id: '2',
+        username: 'user2',
+        role: 'librarian',
+      }),
+      makeUser({
+        id: '3',
+        username: 'user3',
+        role: 'member',
+        memberId: '30',
+      }),
+      makeUser({ id: '4', role: 'member', status: 'disabled' }),
       makeUser({ id: '5', role: 'superuser' }),
-      makeUser({ id: '6', role: 'ADMIN' }),
-      makeUser({ id: '7', role: 'MEMBER', memberId: null }),
+      makeUser({ id: '6', role: 'admin' }),
+      makeUser({ id: '7', role: 'member', memberId: null }),
     ]);
     const testApp = await createTestApp(users, [ContractTestModule]);
     // User 6 simulates a database failure during the lookup.
@@ -52,17 +61,19 @@ describe('Auth guard contract (e2e)', () => {
     it('route without decorators: 401 without a token', () =>
       get('/contract/me').expect(401));
 
-    it('@CurrentUser returns exactly { id, role, memberId }', () =>
+    it('@CurrentUser returns exactly { id, username, role, memberId }', () =>
       get('/contract/me', tokenFor('3')).expect(200, {
         id: '3',
-        role: 'MEMBER',
+        username: 'user3',
+        role: 'member',
         memberId: '30',
       }));
 
     it('@CurrentUser omits memberId for staff', () =>
-      get('/contract/me', tokenFor('2', 'LIBRARIAN')).expect(200, {
+      get('/contract/me', tokenFor('2', 'librarian')).expect(200, {
         id: '2',
-        role: 'LIBRARIAN',
+        username: 'user2',
+        role: 'librarian',
       }));
 
     it.each([
@@ -77,7 +88,7 @@ describe('Auth guard contract (e2e)', () => {
     });
 
     it('role comes from the database: a MEMBER token claiming ADMIN gets 403', () =>
-      get('/contract/admin', tokenFor('3', 'ADMIN')).expect(403));
+      get('/contract/admin', tokenFor('3', 'admin')).expect(403));
 
     it('@Public plus @Roles fails closed, even with an admin token', () =>
       get('/contract/public-with-roles', tokenFor('1')).expect(401));
@@ -96,7 +107,7 @@ describe('Auth guard contract (e2e)', () => {
       get(
         '/contract/me',
         signToken(
-          { sub: '3', role: 'MEMBER', iat: now(), exp: now() + 60 },
+          { sub: '3', role: 'member', iat: now(), exp: now() + 60 },
           SECRET,
         ),
       ).expect(200));
@@ -106,7 +117,7 @@ describe('Auth guard contract (e2e)', () => {
       const forged = Buffer.from(
         JSON.stringify({
           sub: '1',
-          role: 'ADMIN',
+          role: 'admin',
           iat: now(),
           exp: now() + 60,
         }),
@@ -120,7 +131,7 @@ describe('Auth guard contract (e2e)', () => {
       get(
         '/contract/me',
         signToken(
-          { sub: '3', role: 'MEMBER', iat: now() - 1000, exp: now() - 60 },
+          { sub: '3', role: 'member', iat: now() - 1000, exp: now() - 60 },
           SECRET,
         ),
       ).expect(401));
@@ -128,14 +139,14 @@ describe('Auth guard contract (e2e)', () => {
     it('alg "none" → 401', () =>
       get(
         '/contract/me',
-        unsignedToken({ sub: '1', role: 'ADMIN', iat: now(), exp: now() + 60 }),
+        unsignedToken({ sub: '1', role: 'admin', iat: now(), exp: now() + 60 }),
       ).expect(401));
 
     it('HS512 token signed with the right secret → 401 (algorithm pinned)', () =>
       get(
         '/contract/me',
         signToken(
-          { sub: '3', role: 'MEMBER', iat: now(), exp: now() + 60 },
+          { sub: '3', role: 'member', iat: now(), exp: now() + 60 },
           SECRET,
           'HS512',
         ),
@@ -145,7 +156,7 @@ describe('Auth guard contract (e2e)', () => {
       get(
         '/contract/me',
         signToken(
-          { sub: '3', role: 'MEMBER', iat: now(), exp: now() + 60 },
+          { sub: '3', role: 'member', iat: now(), exp: now() + 60 },
           randomBytes(48).toString('base64url'),
         ),
       ).expect(401));
@@ -153,7 +164,7 @@ describe('Auth guard contract (e2e)', () => {
     it('token without sub → 401', () =>
       get(
         '/contract/me',
-        signToken({ role: 'ADMIN', iat: now(), exp: now() + 60 }, SECRET),
+        signToken({ role: 'admin', iat: now(), exp: now() + 60 }, SECRET),
       ).expect(401));
 
     it.each([

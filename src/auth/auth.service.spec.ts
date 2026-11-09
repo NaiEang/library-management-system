@@ -19,7 +19,7 @@ const member: LoginCandidate = {
   username: 'goodstudent',
   status: 'active',
   passwordHash: '$argon2id$real',
-  roleName: 'MEMBER',
+  roleName: 'member',
   memberId: '30',
   membershipStatus: 'pending_deposit',
 };
@@ -103,7 +103,7 @@ describe('AuthService.login', () => {
         id: '3',
         email: member.email,
         username: 'goodstudent',
-        role: 'MEMBER',
+        role: 'member',
         membershipStatus: 'pending_deposit',
       },
     });
@@ -137,7 +137,7 @@ describe('AuthService.login', () => {
     ['wrong_password', member, false],
     ['disabled', { ...member, status: 'disabled' }, true],
     ['unknown_role', { ...member, roleName: 'superuser' }, true],
-    ['unknown_role', { ...member, roleName: 'member' }, true],
+    ['unknown_role', { ...member, roleName: 'MEMBER' }, true],
     ['member_row_missing', { ...member, memberId: null }, true],
   ])(
     '%s → the same 401, no session, an audit event',
@@ -196,7 +196,7 @@ describe('AuthService.register', () => {
       id: '41',
       email: 'new.member@demo.com',
       username: 'newmember',
-      role: 'MEMBER',
+      role: 'member',
       membershipStatus: 'pending_deposit',
     });
     expect(passwordService.hash).toHaveBeenCalledWith(dto.password);

@@ -19,8 +19,9 @@ function strategyReturning(record: AuthUserRecord | null | Error) {
 
 const activeMember: AuthUserRecord = {
   id: '3',
+  username: 'member.one',
   status: 'active',
-  roleName: 'MEMBER',
+  roleName: 'member',
   memberId: '30',
 };
 
@@ -29,12 +30,13 @@ describe('JwtStrategy.validate', () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined),
   );
 
-  it('returns { id, role, memberId } for an active member', async () => {
+  it('returns { id, username, role, memberId } for an active member', async () => {
     const { strategy, findForAuth } = strategyReturning(activeMember);
     await expect(
       strategy.validate({ sub: '3', role: RoleName.MEMBER }),
     ).resolves.toEqual({
       id: '3',
+      username: 'member.one',
       role: RoleName.MEMBER,
       memberId: '30',
     });
@@ -44,14 +46,16 @@ describe('JwtStrategy.validate', () => {
   it('omits memberId for staff', async () => {
     const { strategy } = strategyReturning({
       id: '1',
+      username: 'admin',
       status: 'active',
-      roleName: 'ADMIN',
+      roleName: 'admin',
       memberId: null,
     });
     await expect(
       strategy.validate({ sub: '1', role: RoleName.ADMIN }),
     ).resolves.toEqual({
       id: '1',
+      username: 'admin',
       role: RoleName.ADMIN,
     });
   });
@@ -59,13 +63,18 @@ describe('JwtStrategy.validate', () => {
   it('never attaches memberId to staff, even if a member row exists', async () => {
     const { strategy } = strategyReturning({
       id: '2',
+      username: 'desk.librarian',
       status: 'active',
-      roleName: 'LIBRARIAN',
+      roleName: 'librarian',
       memberId: '20',
     });
     await expect(
       strategy.validate({ sub: '2', role: RoleName.LIBRARIAN }),
-    ).resolves.toEqual({ id: '2', role: RoleName.LIBRARIAN });
+    ).resolves.toEqual({
+      id: '2',
+      username: 'desk.librarian',
+      role: RoleName.LIBRARIAN,
+    });
   });
 
   it('takes the role from the database, not from the token', async () => {
@@ -82,10 +91,7 @@ describe('JwtStrategy.validate', () => {
       { ...activeMember, status: 'suspended' },
     ],
     ['the role is unknown', { ...activeMember, roleName: 'superuser' }],
-    [
-      'the role is lowercase (not yet normalized)',
-      { ...activeMember, roleName: 'member' },
-    ],
+    ['the role is not lowercase', { ...activeMember, roleName: 'MEMBER' }],
     ['the role is missing', { ...activeMember, roleName: null }],
     ['a MEMBER has no member row', { ...activeMember, memberId: null }],
     ['the database throws', new Error('connection refused')],

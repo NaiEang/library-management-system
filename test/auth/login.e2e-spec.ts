@@ -14,17 +14,17 @@ const DAY = 24 * HOUR;
 // One account per role, plus a disabled member.
 const seedUsers = () =>
   Promise.all([
-    makeUser({ id: '1', role: 'ADMIN', email: 'admin@libraflow.test' }),
-    makeUser({ id: '2', role: 'LIBRARIAN', email: 'librarian@libraflow.test' }),
+    makeUser({ id: '1', role: 'admin', email: 'admin@libraflow.test' }),
+    makeUser({ id: '2', role: 'librarian', email: 'librarian@libraflow.test' }),
     makeUser({
       id: '3',
-      role: 'MEMBER',
+      role: 'member',
       email: 'good.student@demo.com',
       membershipStatus: 'pending_deposit',
     }),
     makeUser({
       id: '4',
-      role: 'MEMBER',
+      role: 'member',
       email: 'disabled@libraflow.test',
       status: 'disabled',
     }),
@@ -63,9 +63,9 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
 
   describe('successful login, per role', () => {
     it.each([
-      ['admin@libraflow.test', '1', 'ADMIN', null],
-      ['librarian@libraflow.test', '2', 'LIBRARIAN', null],
-      ['good.student@demo.com', '3', 'MEMBER', 'pending_deposit'],
+      ['admin@libraflow.test', '1', 'admin', null],
+      ['librarian@libraflow.test', '2', 'librarian', null],
+      ['good.student@demo.com', '3', 'member', 'pending_deposit'],
     ])(
       '%s → 200 with an access token and the user summary',
       async (email, id, role, membershipStatus) => {
@@ -84,7 +84,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
       const res = await me(body.accessToken).expect(200);
       expect(res.body).toMatchObject({
         id: '2',
-        role: 'LIBRARIAN',
+        role: 'librarian',
         member: null,
       });
     });
@@ -256,7 +256,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
         firstName: 'Test',
         lastName: 'User3',
         phone: null,
-        role: 'MEMBER',
+        role: 'member',
         status: 'active',
         lastLoginAt: expect.any(String),
         member: {
@@ -275,7 +275,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
       await me(body.accessToken)
         .expect(200)
         .expect((res) => {
-          expect(res.body).toMatchObject({ role: 'ADMIN', member: null });
+          expect(res.body).toMatchObject({ role: 'admin', member: null });
         });
     });
 

@@ -23,7 +23,7 @@ export function hashedPassword(): Promise<string> {
   return passwordHash;
 }
 
-const ROLE_IDS: Record<string, number> = { ADMIN: 1, LIBRARIAN: 2, MEMBER: 3 };
+const ROLE_IDS: Record<string, number> = { admin: 1, librarian: 2, member: 3 };
 
 export interface FakeUserInput {
   id: string;
@@ -40,7 +40,7 @@ export interface FakeUserInput {
 export async function makeUser(input: FakeUserInput): Promise<User> {
   const memberId =
     input.memberId === undefined
-      ? input.role === 'MEMBER'
+      ? input.role === 'member'
         ? `${input.id}0`
         : null
       : input.memberId;
@@ -79,10 +79,10 @@ export interface TestApp {
 
 // The roles the migration guarantees.
 export const ROLES = [
-  { id: 1, name: 'ADMIN' },
-  { id: 2, name: 'LIBRARIAN' },
-  { id: 3, name: 'MEMBER' },
-] as Role[];
+  { id: 1, name: 'admin' },
+  { id: 2, name: 'librarian' },
+  { id: 3, name: 'member' },
+] as unknown as Role[];
 
 // The real AuthModule and UsersModule with in-memory repositories: no database.
 export async function createTestApp(

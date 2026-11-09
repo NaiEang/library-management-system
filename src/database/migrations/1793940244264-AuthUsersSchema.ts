@@ -28,10 +28,10 @@ export class AuthUsersSchema1793940244264 implements MigrationInterface {
         await queryRunner.query(`UPDATE "users" SET "status" = 'disabled' WHERE "status" <> 'active'`);
 
         // --- roles
-        // HAND EDIT: uppercase the existing names (admin, librarian, member),
-        // then make sure all three exist.
-        await queryRunner.query(`UPDATE "roles" SET "name" = upper("name") WHERE "name" <> upper("name")`);
-        await queryRunner.query(`INSERT INTO "roles" ("name", "description") VALUES ('ADMIN', 'Administrator'), ('LIBRARIAN', 'Librarian'), ('MEMBER', 'Library member') ON CONFLICT ("name") DO NOTHING`);
+        // HAND EDIT: role names stay lowercase (as in Supabase and the team's
+        // code); normalize any other spelling, then make sure all three exist.
+        await queryRunner.query(`UPDATE "roles" SET "name" = lower("name") WHERE "name" <> lower("name")`);
+        await queryRunner.query(`INSERT INTO "roles" ("name", "description") VALUES ('admin', 'Administrator'), ('librarian', 'Librarian'), ('member', 'Library member') ON CONFLICT ("name") DO NOTHING`);
 
         // --- members
         await queryRunner.query(`ALTER TABLE "members" ADD "deposit_verified_at" TIMESTAMP WITH TIME ZONE`);
@@ -45,7 +45,7 @@ export class AuthUsersSchema1793940244264 implements MigrationInterface {
         await queryRunner.query(`UPDATE "members" SET "membership_status" = CASE "membership_status" WHEN 'pending' THEN 'pending_deposit' WHEN 'blocked' THEN 'active' WHEN 'suspended' THEN 'expired' ELSE 'pending_deposit' END WHERE "membership_status" NOT IN ('pending_deposit', 'active', 'expired')`);
 
         // --- constraints (after the data is clean)
-        await queryRunner.query(`ALTER TABLE "roles" ADD CONSTRAINT "CHK_roles_name" CHECK ("name" IN ('ADMIN', 'LIBRARIAN', 'MEMBER'))`);
+        await queryRunner.query(`ALTER TABLE "roles" ADD CONSTRAINT "CHK_roles_name" CHECK ("name" IN ('admin', 'librarian', 'member'))`);
         await queryRunner.query(`ALTER TABLE "members" ADD CONSTRAINT "CHK_members_membership_status" CHECK ("membership_status" IN ('pending_deposit', 'active', 'expired'))`);
         // HAND EDIT (approved 2026-11-06): restore the team's original checks.
         // deposit_amount already defaults to 0 in the database, so no change there.
@@ -69,8 +69,7 @@ export class AuthUsersSchema1793940244264 implements MigrationInterface {
 
     // Reverses the schema. The data mapping can't be fully undone: old status
     // values (inactive, suspended, blocked, pending) and email letter case are
-    // not restored, and refresh tokens are deleted. Role names go back to
-    // lowercase. Members with no expiry date get their membership date, so
+    // not restored, and refresh tokens are deleted. Members with no expiry date get their membership date, so
     // the old NOT NULL can be restored.
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`ALTER TABLE "refresh_tokens" DISABLE ROW LEVEL SECURITY`);
@@ -86,7 +85,6 @@ export class AuthUsersSchema1793940244264 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "members" DROP CONSTRAINT "chk_members_deposit_nonnegative"`);
         await queryRunner.query(`ALTER TABLE "members" DROP CONSTRAINT "CHK_members_membership_status"`);
         await queryRunner.query(`ALTER TABLE "roles" DROP CONSTRAINT "CHK_roles_name"`);
-        await queryRunner.query(`UPDATE "roles" SET "name" = lower("name")`);
         await queryRunner.query(`ALTER TABLE "members" ALTER COLUMN "membership_status" SET DEFAULT 'active'`);
         await queryRunner.query(`UPDATE "members" SET "expiry_date" = "membership_date" WHERE "expiry_date" IS NULL`);
         await queryRunner.query(`ALTER TABLE "members" ALTER COLUMN "expiry_date" SET NOT NULL`);

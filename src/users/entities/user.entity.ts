@@ -7,7 +7,7 @@ import {
   ManyToOne,
   OneToOne,
   JoinColumn,
-  Relation,
+  type Relation,
   OneToMany,
   Check,
 } from 'typeorm';

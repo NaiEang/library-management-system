@@ -31,19 +31,19 @@ describe('POST /users/librarians (e2e)', () => {
 
   beforeEach(async () => {
     const seeded = await Promise.all([
-      makeUser({ id: '1', role: 'ADMIN', email: 'admin@libraflow.test' }),
+      makeUser({ id: '1', role: 'admin', email: 'admin@libraflow.test' }),
       makeUser({
         id: '2',
-        role: 'LIBRARIAN',
+        role: 'librarian',
         email: 'old.librarian@libraflow.test',
       }),
-      makeUser({ id: '3', role: 'MEMBER', email: 'member@libraflow.test' }),
+      makeUser({ id: '3', role: 'member', email: 'member@libraflow.test' }),
     ]);
     ({ app, users, members } = await createTestApp(seeded));
     for (const [role, email] of [
-      ['ADMIN', 'admin@libraflow.test'],
-      ['LIBRARIAN', 'old.librarian@libraflow.test'],
-      ['MEMBER', 'member@libraflow.test'],
+      ['admin', 'admin@libraflow.test'],
+      ['librarian', 'old.librarian@libraflow.test'],
+      ['member', 'member@libraflow.test'],
     ]) {
       tokens[role] = (await login(email).expect(200)).body
         .accessToken as string;
@@ -56,19 +56,19 @@ describe('POST /users/librarians (e2e)', () => {
 
   describe('permission matrix', () => {
     it('guest → 401', () => create(librarian).expect(401));
-    it('member → 403', () => create(librarian, tokens.MEMBER).expect(403));
+    it('member → 403', () => create(librarian, tokens.member).expect(403));
     it('librarian → 403', () =>
-      create(librarian, tokens.LIBRARIAN).expect(403));
-    it('admin → 201', () => create(librarian, tokens.ADMIN).expect(201));
+      create(librarian, tokens.librarian).expect(403));
+    it('admin → 201', () => create(librarian, tokens.admin).expect(201));
 
     it('a refused request creates nothing', async () => {
-      await create(librarian, tokens.LIBRARIAN).expect(403);
+      await create(librarian, tokens.librarian).expect(403);
       expect(users.rows).toHaveLength(3);
     });
   });
 
   it('admin creates an active LIBRARIAN with normalized email and username, and no member row', async () => {
-    const res = await create(librarian, tokens.ADMIN).expect(201);
+    const res = await create(librarian, tokens.admin).expect(201);
     expect(res.body).toEqual({
       id: expect.any(String),
       email: 'desk.librarian@libraflow.test',
@@ -76,7 +76,7 @@ describe('POST /users/librarians (e2e)', () => {
       firstName: 'Desk',
       lastName: 'Librarian',
       phone: null,
-      role: 'LIBRARIAN',
+      role: 'librarian',
       status: 'active',
     });
     expect(users.rows.find((u) => u.id === res.body.id)).toMatchObject({
@@ -88,13 +88,13 @@ describe('POST /users/librarians (e2e)', () => {
   });
 
   it('the new librarian can log in, gets a 12-hour staff session, and reaches librarian-only routes', async () => {
-    await create(librarian, tokens.ADMIN).expect(201);
+    await create(librarian, tokens.admin).expect(201);
     const res = await login(
       'desk.librarian@libraflow.test',
       librarian.password,
     ).expect(200);
     expect(res.body.user).toMatchObject({
-      role: 'LIBRARIAN',
+      role: 'librarian',
       membershipStatus: null,
     });
     expect(String(res.headers['set-cookie']?.[0])).toMatch(/Max-Age=43200/);
@@ -107,10 +107,10 @@ describe('POST /users/librarians (e2e)', () => {
 
   it('ignores role, status and id from the client', async () => {
     const res = await create(
-      { ...librarian, role: 'ADMIN', roleId: 1, status: 'disabled', id: '1' },
-      tokens.ADMIN,
+      { ...librarian, role: 'admin', roleId: 1, status: 'disabled', id: '1' },
+      tokens.admin,
     ).expect(201);
-    expect(res.body).toMatchObject({ role: 'LIBRARIAN', status: 'active' });
+    expect(res.body).toMatchObject({ role: 'librarian', status: 'active' });
     expect(res.body.id).not.toBe('1');
     expect(users.rows.find((u) => u.id === res.body.id)).toMatchObject({
       roleId: 2,
@@ -128,7 +128,7 @@ describe('POST /users/librarians (e2e)', () => {
   ])('%s → 409', async (_label, override, message) => {
     const res = await create(
       { ...librarian, ...override },
-      tokens.ADMIN,
+      tokens.admin,
     ).expect(409);
     expect(res.body.message).toBe(message);
     expect(users.rows).toHaveLength(3);
@@ -147,7 +147,7 @@ describe('POST /users/librarians (e2e)', () => {
   ])('%s → 400, nothing saved', async (_label, override, rule) => {
     const res = await create(
       { ...librarian, ...override },
-      tokens.ADMIN,
+      tokens.admin,
     ).expect(400);
     expect(JSON.stringify(res.body.message)).toMatch(rule);
     expect(users.rows).toHaveLength(3);

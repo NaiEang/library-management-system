@@ -57,7 +57,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     const role = user.roleName;
     if (role !== RoleName.MEMBER) {
-      return { id: user.id, role };
+      return { id: user.id, username: user.username, role };
     }
     // Register creates the user and member rows together, so a MEMBER without
     // a member row is corrupt data: deny rather than hand teammates no memberId.
@@ -67,6 +67,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       );
       throw new UnauthorizedException();
     }
-    return { id: user.id, role, memberId: user.memberId };
+    return {
+      id: user.id,
+      username: user.username,
+      role,
+      memberId: user.memberId,
+    };
   }
 }

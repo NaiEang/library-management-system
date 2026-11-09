@@ -12,7 +12,7 @@ const base = {
   status: 'active',
   lastLoginAt: null,
   roleId: 3,
-  role: { id: 3, name: 'MEMBER' },
+  role: { id: 3, name: 'member' },
   member: {
     id: '30',
     memberCode: 'LF-2026-ABC123',
@@ -51,9 +51,9 @@ describe('toUserProfile', () => {
   });
 
   it('returns member: null for staff', () => {
-    const staff = { ...base, role: { id: 2, name: 'LIBRARIAN' }, member: null };
+    const staff = { ...base, role: { id: 2, name: 'librarian' }, member: null };
     expect(toUserProfile(staff as unknown as User)).toMatchObject({
-      role: 'LIBRARIAN',
+      role: 'librarian',
       member: null,
     });
   });

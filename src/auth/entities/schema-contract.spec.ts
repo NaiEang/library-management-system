@@ -48,7 +48,7 @@ describe('Auth & Users schema contract', () => {
 
   it('roles: only ADMIN, LIBRARIAN and MEMBER', () => {
     expect(checks(Role)).toContain(
-      `"name" IN ('ADMIN', 'LIBRARIAN', 'MEMBER')`,
+      `"name" IN ('admin', 'librarian', 'member')`,
     );
   });
 

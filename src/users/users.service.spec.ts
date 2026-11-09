@@ -58,13 +58,13 @@ describe('UsersService', () => {
       username: 'lib',
       status: 'active',
       passwordHash: 'h',
-      role: { name: 'LIBRARIAN' },
+      role: { name: 'librarian' },
       member: undefined,
     } as unknown as User);
     await expect(
       service.findForLogin('librarian@libraflow.test'),
     ).resolves.toMatchObject({
-      roleName: 'LIBRARIAN',
+      roleName: 'librarian',
       memberId: null,
       membershipStatus: null,
     });
@@ -249,7 +249,7 @@ describe('UsersService.registerMember', () => {
   it('fails safely when the MEMBER role is missing', async () => {
     const { service, manager } = registerSetup({ role: null });
     await expect(service.registerMember(input)).rejects.toThrow(
-      /Role MEMBER not found/,
+      /Role member not found/,
     );
     expect(manager.insert).not.toHaveBeenCalled();
   });
@@ -292,12 +292,12 @@ describe('UsersService.createLibrarian', () => {
       firstName: 'Desk',
       lastName: 'Librarian',
       phone: null,
-      role: 'LIBRARIAN',
+      role: 'librarian',
       status: 'active',
     });
     expect(manager.findOne).toHaveBeenCalledWith(
       Role,
-      expect.objectContaining({ where: { name: 'LIBRARIAN' } }),
+      expect.objectContaining({ where: { name: 'librarian' } }),
     );
     expect(inserted(User)).toMatchObject({
       roleId: 2,
@@ -360,7 +360,7 @@ describe('UsersService.createLibrarian', () => {
   it('fails safely when the LIBRARIAN role is missing', async () => {
     const { service } = registerSetup({ role: null });
     await expect(service.createLibrarian(staff)).rejects.toThrow(
-      /Role LIBRARIAN not found/,
+      /Role librarian not found/,
     );
   });
 });

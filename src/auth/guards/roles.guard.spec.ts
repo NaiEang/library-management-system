@@ -45,9 +45,18 @@ function contextFor(
   } as unknown as ExecutionContext;
 }
 
-const member: AuthUser = { id: '3', role: RoleName.MEMBER, memberId: '30' };
-const librarian: AuthUser = { id: '2', role: RoleName.LIBRARIAN };
-const admin: AuthUser = { id: '1', role: RoleName.ADMIN };
+const member: AuthUser = {
+  id: '3',
+  username: 'member.one',
+  role: RoleName.MEMBER,
+  memberId: '30',
+};
+const librarian: AuthUser = {
+  id: '2',
+  username: 'desk.librarian',
+  role: RoleName.LIBRARIAN,
+};
+const admin: AuthUser = { id: '1', username: 'admin', role: RoleName.ADMIN };
 
 describe('RolesGuard', () => {
   const guard = new RolesGuard(new Reflector());

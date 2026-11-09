@@ -11,7 +11,7 @@ import { User } from './user.entity';
 import { RoleName } from '../../common/constants';
 
 @Entity('roles')
-@Check('CHK_roles_name', `"name" IN ('ADMIN', 'LIBRARIAN', 'MEMBER')`)
+@Check('CHK_roles_name', `"name" IN ('admin', 'librarian', 'member')`)
 export class Role {
   @PrimaryGeneratedColumn({ type: 'integer' })
   id: number;

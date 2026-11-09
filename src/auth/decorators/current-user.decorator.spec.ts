@@ -10,12 +10,18 @@ function contextWith(user?: AuthUser): ExecutionContext {
 }
 
 describe('CurrentUser', () => {
-  const user: AuthUser = { id: '3', role: RoleName.MEMBER, memberId: '30' };
+  const user: AuthUser = {
+    id: '3',
+    username: 'member.one',
+    role: RoleName.MEMBER,
+    memberId: '30',
+  };
 
   it('returns the whole user', () => {
     expect(currentUserFactory(undefined, contextWith(user))).toEqual({
       id: '3',
-      role: 'MEMBER',
+      username: 'member.one',
+      role: 'member',
       memberId: '30',
     });
   });

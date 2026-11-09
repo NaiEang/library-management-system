@@ -27,7 +27,7 @@ describe('POST /auth/register (e2e)', () => {
   beforeEach(async () => {
     const existing = await makeUser({
       id: '1',
-      role: 'ADMIN',
+      role: 'admin',
       email: 'taken@demo.com',
       username: 'takenname',
     });
@@ -44,7 +44,7 @@ describe('POST /auth/register (e2e)', () => {
       id: expect.any(String),
       email: 'new.member@demo.com',
       username: 'newmember',
-      role: 'MEMBER',
+      role: 'member',
       membershipStatus: 'pending_deposit',
     });
     expect(res.headers['set-cookie']).toBeUndefined();
@@ -83,7 +83,7 @@ describe('POST /auth/register (e2e)', () => {
       .send({ email: 'new.member@demo.com', password: PASSWORD })
       .expect(200);
     expect(login.body.user).toMatchObject({
-      role: 'MEMBER',
+      role: 'member',
       membershipStatus: 'pending_deposit',
     });
     const me = await request(app.getHttpServer())
@@ -100,7 +100,7 @@ describe('POST /auth/register (e2e)', () => {
   it('ignores role, status, id, membership and deposit fields from the client', async () => {
     const { body } = await register({
       ...newMember,
-      role: 'ADMIN',
+      role: 'admin',
       roleId: 1,
       status: 'disabled',
       id: '1',
@@ -111,7 +111,7 @@ describe('POST /auth/register (e2e)', () => {
     }).expect(201);
     // Stripped by the whitelist (a 400 needs forbidNonWhitelisted in main.ts, still pending).
     expect(body).toMatchObject({
-      role: 'MEMBER',
+      role: 'member',
       membershipStatus: 'pending_deposit',
     });
     expect(body.id).not.toBe('1');
