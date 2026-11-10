@@ -13,6 +13,7 @@ import { AccountsService } from './accounts.service';
 
 const admin = { id: '1', username: 'admin', role: RoleName.ADMIN };
 const librarian = { id: '2', username: 'desk', role: RoleName.LIBRARIAN };
+const managerActor = { id: '8', username: 'campus', role: RoleName.MANAGER };
 
 function setup({
   target = null as Record<string, unknown> | null,
@@ -185,5 +186,75 @@ describe('AccountsService.resetPassword', () => {
     await expect(setup().service.resetPassword('99', admin)).rejects.toThrow(
       NotFoundException,
     );
+  });
+});
+
+describe('Manager rules (admin minus admin powers)', () => {
+  const librarianTarget = {
+    ...member,
+    id: '6',
+    role: { name: RoleName.LIBRARIAN },
+  };
+  const managerTarget = {
+    ...member,
+    id: '9',
+    role: { name: RoleName.MANAGER },
+  };
+
+  it.each([
+    ['a member', member],
+    ['a librarian', librarianTarget],
+  ])(
+    'a manager can disable %s and reset its password',
+    async (_label, target) => {
+      const disable = setup({ target });
+      await expect(
+        disable.service.setStatus(String(target.id), false, managerActor),
+      ).resolves.toMatchObject({
+        status: 'disabled',
+      });
+      const reset = setup({ target });
+      await expect(
+        reset.service.resetPassword(String(target.id), managerActor),
+      ).resolves.toMatchObject({
+        id: String(target.id),
+      });
+    },
+  );
+
+  it.each([
+    ['another manager', managerTarget],
+    ['an admin', otherAdmin],
+  ])(
+    'a manager cannot disable or reset %s → 403, nothing written',
+    async (_label, target) => {
+      const disable = setup({ target });
+      await expect(
+        disable.service.setStatus(String(target.id), false, managerActor),
+      ).rejects.toThrow(ForbiddenException);
+      expect(disable.manager.update).not.toHaveBeenCalled();
+      const reset = setup({ target });
+      await expect(
+        reset.service.resetPassword(String(target.id), managerActor),
+      ).rejects.toThrow(ForbiddenException);
+      expect(reset.manager.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('an admin can disable a manager', async () => {
+    const { service } = setup({ target: managerTarget });
+    await expect(service.setStatus('9', false, admin)).resolves.toMatchObject({
+      status: 'disabled',
+    });
+  });
+
+  it('an account with an unknown role is never changed → 403', async () => {
+    const { service, manager } = setup({
+      target: { ...member, role: { name: 'superuser' } },
+    });
+    await expect(service.setStatus('5', false, admin)).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(manager.update).not.toHaveBeenCalled();
   });
 });

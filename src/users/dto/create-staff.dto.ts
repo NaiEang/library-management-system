@@ -17,9 +17,9 @@ import {
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
-// The role is fixed by the route (LIBRARIAN); role, status and id are never
+// The role is fixed by the route (librarian or manager); role, status and id are never
 // read from the client (the global ValidationPipe strips them).
-export class CreateLibrarianDto {
+export class CreateStaffDto {
   @ApiProperty({ example: 'librarian@libraflow.test' })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? normalizeEmail(value) : value,

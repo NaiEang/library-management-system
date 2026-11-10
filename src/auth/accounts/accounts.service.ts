@@ -8,9 +8,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'node:crypto';
 import { Repository } from 'typeorm';
-import { RoleName, UserStatus } from '../../common/constants';
+import { isRoleName, RoleName, UserStatus } from '../../common/constants';
 import { User } from '../../users/entities/user.entity';
 import { PasswordService } from '../password/password.service';
+import { canManage } from '../role-ladder';
 import { RefreshTokenService } from '../tokens/refresh-token.service';
 import type { AuthUser } from '../types/auth-user';
 
@@ -37,9 +38,10 @@ export class AccountsService {
     private readonly passwordService: PasswordService,
   ) {}
 
-  // Admin-only (the route has @Roles(ADMIN)). Both directions end every session
-  // of the user; a disabled user's access tokens also stop working at once,
-  // because the guard checks the account status on every request.
+  // Managers and admins (the route has @Roles(MANAGER)). A manager changes only
+  // librarians and members; an admin anyone but themselves. Both directions
+  // end every session of the user; a disabled user's access tokens also stop
+  // working at once, because the guard checks the status on every request.
   async setStatus(
     targetId: string,
     enabled: boolean,
@@ -61,6 +63,14 @@ export class AccountsService {
         .getOne();
       if (!target) {
         throw new NotFoundException('User not found');
+      }
+      if (
+        !isRoleName(target.role.name) ||
+        !canManage(actor.role, target.role.name)
+      ) {
+        throw new ForbiddenException(
+          'You cannot change the status of this account',
+        );
       }
 
       if (
@@ -102,7 +112,7 @@ export class AccountsService {
   }
 
   // "Forgot password" without email: staff set a random temporary password at
-  // the desk. An admin can reset anyone but themselves; a librarian only members.
+  // the desk, for accounts below them (see canManage in role-ladder.ts).
   async resetPassword(
     targetId: string,
     actor: AuthUser,
@@ -120,12 +130,13 @@ export class AccountsService {
     if (!target) {
       throw new NotFoundException('User not found');
     }
+    // A librarian resets members, a manager librarians and members, an admin anyone.
     if (
-      actor.role === RoleName.LIBRARIAN &&
-      target.role.name !== RoleName.MEMBER
+      !isRoleName(target.role.name) ||
+      !canManage(actor.role, target.role.name)
     ) {
       throw new ForbiddenException(
-        'Librarians can only reset members’ passwords',
+        'You cannot reset the password of this account',
       );
     }
 
