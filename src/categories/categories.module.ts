@@ -4,6 +4,7 @@ import { Category } from '../books/entities/category.entity';
 import { Book } from '../books/entities/book.entity';
 import { CategoriesController } from './categories.controller';
 import { CategoriesService } from './categories.service';
+
 @Module({
   imports: [TypeOrmModule.forFeature([Category, Book])],
   controllers: [CategoriesController],
