@@ -15,9 +15,8 @@ services:
     ports:
       - '5432:5432'
     volumes:
+      # libraflow_test for the E2E suite is created by the tests themselves on their first run
       - postgres_data:/var/lib/postgresql/data
-      # Creates libraflow_test for the E2E suite on first start
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U libraflow -d libraflow_dev']
       interval: 5s
@@ -66,8 +65,9 @@ services:
   prometheus:
     profiles: ['observability']
     image: prom/prometheus:v3.3.0
-    volumes:
-      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    configs:
+      - source: prometheus
+        target: /etc/prometheus/prometheus.yml
     ports:
       - '9090:9090'
     extra_hosts:
@@ -87,3 +87,15 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
+configs:
+  # Inline so the stack needs no extra config files (Docker Compose 2.23 or later)
+  prometheus:
+    content: |
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+        # The API usually runs on the host during development; use `api:3000` when it runs in compose
+        - job_name: libraflow-api
+          static_configs:
+            - targets: ['host.docker.internal:3000']
