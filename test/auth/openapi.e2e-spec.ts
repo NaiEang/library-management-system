@@ -1,0 +1,108 @@
+import { INestApplication } from '@nestjs/common';
+import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import { App } from 'supertest/types';
+import { createTestApp } from './fixtures/test-app';
+
+// The OpenAPI document that Apidog imports (served at /api/docs-json). Built
+// with the same bearer setup as src/main.ts, so a change that would break the
+// import (a lost body schema, a missing lock) fails here.
+describe('OpenAPI document for Auth & Users (e2e)', () => {
+  let app: INestApplication<App>;
+  let doc: OpenAPIObject;
+
+  const operation = (path: string, method: 'get' | 'post') =>
+    doc.paths[path]?.[method];
+  const bodySchema = (path: string) =>
+    (
+      operation(path, 'post')?.requestBody as {
+        content: Record<string, { schema: { $ref: string } }>;
+      }
+    )?.content['application/json']?.schema.$ref;
+  const schema = (name: string) =>
+    doc.components?.schemas?.[name] as {
+      required?: string[];
+      properties: Record<string, { format?: string }>;
+    };
+
+  beforeAll(async () => {
+    ({ app } = await createTestApp([]));
+    doc = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder().addBearerAuth().build(),
+    );
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('declares bearer (JWT) authentication', () => {
+    expect(doc.components?.securitySchemes?.bearer).toEqual({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+    });
+  });
+
+  it.each([
+    ['/auth/login', 'post'],
+    ['/auth/register', 'post'],
+  ] as const)('%s is public: no lock', (path, method) => {
+    expect(operation(path, method)).toBeDefined();
+    expect(operation(path, method)?.security).toBeUndefined();
+  });
+
+  it.each([
+    ['/auth/me', 'get'],
+    ['/users/librarians', 'post'],
+  ] as const)('%s requires the bearer token', (path, method) => {
+    expect(operation(path, method)?.security).toEqual([{ bearer: [] }]);
+  });
+
+  it.each([
+    ['/auth/login', 'LoginDto', ['email', 'password'], ['email', 'password']],
+    [
+      '/auth/register',
+      'RegisterDto',
+      ['email', 'username', 'password'],
+      ['email', 'username', 'password', 'firstName', 'lastName', 'phone'],
+    ],
+    [
+      '/users/librarians',
+      'CreateLibrarianDto',
+      ['email', 'username', 'password', 'firstName', 'lastName'],
+      ['email', 'username', 'password', 'firstName', 'lastName', 'phone'],
+    ],
+  ])('%s documents its body (%s)', (path, name, required, properties) => {
+    expect(bodySchema(path)).toBe(`#/components/schemas/${name}`);
+    expect(schema(name).required).toEqual(required);
+    expect(Object.keys(schema(name).properties)).toEqual(properties);
+    expect(schema(name).properties.password.format).toBe('password');
+  });
+
+  it('never documents a client-controlled role, status, id or deposit field', () => {
+    const fields = ['LoginDto', 'RegisterDto', 'CreateLibrarianDto'].flatMap(
+      (name) => Object.keys(schema(name).properties),
+    );
+    expect(fields).not.toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /^(role|roleId|status|id|membershipStatus|deposit\w*)$/,
+        ),
+      ]),
+    );
+  });
+
+  it('has no leftover scaffold routes', () => {
+    expect(
+      Object.keys(doc.paths)
+        .filter((p) => /^\/(auth|users|members)/.test(p))
+        .sort(),
+    ).toEqual([
+      '/auth/login',
+      '/auth/me',
+      '/auth/register',
+      '/users/librarians',
+    ]);
+  });
+});
