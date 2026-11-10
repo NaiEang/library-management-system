@@ -17,7 +17,7 @@ export class Loan {
   loanDate: Date;
 
   @Column({ type: 'varchar' })
-  status: string; // e.g., 'PENDING', 'ACTIVE', 'COMPLETED'
+  status: string; // LoanStatus (common/constants): pending, active, completed, rejected
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;

@@ -7,6 +7,7 @@ import { PasswordService } from '../../auth/password/password.service';
 import { describeActivity } from '../../dashboard/describe-activity';
 import { insertRows, syncSequence, type Row } from '../insert-rows';
 import { localDataSource, resetSchema } from '../local-db';
+import { NotificationType } from '../../notifications/enums/notification-type.enum';
 
 faker.seed(2026);
 
@@ -50,7 +51,7 @@ type Activity = {
 type Notice = {
   at: number;
   userId: number;
-  type: string;
+  type: NotificationType;
   title: string;
   message: string;
 };
@@ -337,7 +338,7 @@ function build(passwordHash: string) {
     notices.push({
       at: paidMs,
       userId: member.userId,
-      type: 'payment_received',
+      type: NotificationType.PAYMENT_RECEIVED,
       title: type === 'deposit' ? 'Deposit received' : 'Fine paid',
       message: `We received your ${type} of $${money(amount)} via ${method === 'cash' ? 'cash' : 'KHQR'}.`,
     });
@@ -426,7 +427,7 @@ function build(passwordHash: string) {
         notices.push({
           at: rejectedMs,
           userId: member.userId,
-          type: 'loan_rejected',
+          type: NotificationType.LOAN_REJECTED,
           title: 'Loan request rejected',
           message: `Your request ${loanCode} was rejected. Please ask at the desk.`,
         });
@@ -445,7 +446,7 @@ function build(passwordHash: string) {
         notices.push({
           at: approvedMs,
           userId: member.userId,
-          type: 'loan_approved',
+          type: NotificationType.LOAN_APPROVED,
           title: 'Loan approved',
           message: `${loanCode} is ready. Due back in ${LOAN_DAYS} days.`,
         });
@@ -518,7 +519,7 @@ function build(passwordHash: string) {
             notices.push({
               at: dueMs - 2 * DAY,
               userId: member.userId,
-              type: 'due_soon',
+              type: NotificationType.LOAN_DUE_SOON,
               title: 'Due in 2 days',
               message: `${copy.code} from ${loanCode} is due in 2 days.`,
             });
@@ -528,7 +529,7 @@ function build(passwordHash: string) {
           notices.push({
             at: dueMs + DAY,
             userId: member.userId,
-            type: 'overdue',
+            type: NotificationType.LOAN_OVERDUE,
             title: 'Book overdue',
             message: `${copy.code} is overdue. Fines are $${money(FINE_PER_DAY)} a day.`,
           });
