@@ -16,6 +16,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
 import { AuthorsModule } from './authors/authors.module';
+import { BookCopiesModule } from './book-copies/book-copies.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { AuthorsModule } from './authors/authors.module';
     UsersModule,
     MembersModule,
     BooksModule,
+    BookCopiesModule,
     CategoriesModule,
     AuthorsModule,
     LoansModule,
