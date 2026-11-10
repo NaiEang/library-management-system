@@ -20,7 +20,10 @@ const trim = ({ value }: { value: unknown }) =>
 // Only these fields are accepted. role, status, membership and deposit fields
 // are never read from the client (the global ValidationPipe strips them).
 export class RegisterDto {
-  @ApiProperty({ example: 'good.student@demo.com' })
+  @ApiProperty({
+    example: 'good.student@itc.edu.kh',
+    description: 'May be limited to school domains (MEMBER_EMAIL_DOMAINS)',
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? normalizeEmail(value) : value,
   )

@@ -18,6 +18,7 @@ describe('validateAuthEnv', () => {
       frontendOrigin: 'http://localhost:5173',
       depositAmount: 5,
       libraryTimeZone: 'Asia/Phnom_Penh',
+      memberEmailDomains: [],
     });
   });
 
@@ -120,4 +121,26 @@ describe('validateAuthEnv', () => {
       ).toThrow(/LIBRARY_TIME_ZONE/);
     },
   );
+
+  it('reads MEMBER_EMAIL_DOMAINS as a lowercase list', () => {
+    expect(
+      validateAuthEnv({
+        ...baseEnv,
+        MEMBER_EMAIL_DOMAINS: ' ITC.edu.kh , student.itc.edu.kh,',
+      }).memberEmailDomains,
+    ).toEqual(['itc.edu.kh', 'student.itc.edu.kh']);
+  });
+
+  it.each([
+    '@itc.edu.kh',
+    'itc',
+    'itc..edu',
+    '-itc.edu.kh',
+    'itc.edu.kh/x',
+    'user@itc.edu.kh',
+  ])('rejects the domain list "%s"', (value) => {
+    expect(() =>
+      validateAuthEnv({ ...baseEnv, MEMBER_EMAIL_DOMAINS: value }),
+    ).toThrow(/MEMBER_EMAIL_DOMAINS/);
+  });
 });
