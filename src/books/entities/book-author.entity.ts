@@ -1,4 +1,10 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn, type Relation } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  ManyToOne,
+  JoinColumn,
+  type Relation,
+} from 'typeorm';
 import { Book } from './book.entity';
 import { Author } from './author.entity';
 

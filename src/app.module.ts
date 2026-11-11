@@ -14,6 +14,9 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { PaymentsModule } from './payments/payments.module';
 import { UsersModule } from './users/users.module';
+import { CategoriesModule } from './categories/categories.module';
+import { AuthorsModule } from './authors/authors.module';
+import { BookCopiesModule } from './book-copies/book-copies.module';
 
 @Module({
   imports: [
@@ -44,6 +47,9 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     MembersModule,
     BooksModule,
+    BookCopiesModule,
+    CategoriesModule,
+    AuthorsModule,
     LoansModule,
     PaymentsModule,
     NotificationsModule,
