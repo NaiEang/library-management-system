@@ -14,6 +14,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { PaymentsModule } from './payments/payments.module';
 import { UsersModule } from './users/users.module';
+import { ExternalModule } from './external/external.module';
 
 @Module({
   imports: [
@@ -23,7 +24,6 @@ import { UsersModule } from './users/users.module';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        // Each module registers its own entities with TypeOrmModule.forFeature(), so this file never changes for them
         autoLoadEntities: true,
         synchronize: false,
         ssl: dbSsl(configService.get<string>('DB_SSL')),
@@ -48,6 +48,7 @@ import { UsersModule } from './users/users.module';
     PaymentsModule,
     NotificationsModule,
     DashboardModule,
+    ExternalModule,
   ],
   controllers: [AppController],
   providers: [AppService],
