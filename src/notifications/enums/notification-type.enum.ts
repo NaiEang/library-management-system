@@ -1,5 +1,3 @@
-// Stored in notifications.type. Every writer (services, workers, the dev
-// seed) uses these values, so the frontend can switch on one spelling.
 export enum NotificationType {
   LOAN_APPROVED = 'LOAN_APPROVED',
   LOAN_REJECTED = 'LOAN_REJECTED',

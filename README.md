@@ -27,6 +27,9 @@ the accounts are `admin@libraflow.local`, `librarian1..4@libraflow.local` and
 `seed:dev` and the E2E setup refuse to run against anything but localhost or Docker, so a
 Supabase `DATABASE_URL` is never reset.
 
+Overdue reminders (BullMQ) and the queue dashboard at `/queues`: see
+[docs/testing-overdue-notifications.md](docs/testing-overdue-notifications.md) for how to try them.
+
 ## Scripts
 
 | Script | What it does |
