@@ -3,12 +3,13 @@ import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { MembershipService } from '../members/membership.service'; 
 import { Member } from '../members/entities/member.entity'
 import { DataSource } from 'typeorm';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('external')
-@UseGuards(ApiKeyGuard)
 export class ExternalController {
   constructor(private readonly dataSource: DataSource) {}
-
+  @Public()
+  @UseGuards(ApiKeyGuard)
   @Get('members/eligibility')
   async checkEligibility(@Query('email') email: string) {
     if (!email) {
