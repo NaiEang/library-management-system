@@ -5,7 +5,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
+import { AccountsService } from './accounts/accounts.service';
+import { UserAccountsController } from './accounts/user-accounts.controller';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -20,7 +23,7 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
 @Module({
   imports: [
     ConfigModule.forFeature(authConfig),
-    TypeOrmModule.forFeature([RefreshToken]),
+    TypeOrmModule.forFeature([RefreshToken, User]),
     // ThrottlerModule is global; its limits apply only where AuthThrottlerGuard is used.
     ThrottlerModule.forRoot(AUTH_THROTTLE_OPTIONS),
     PassportModule,
@@ -38,10 +41,11 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
     }),
     UsersModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, UserAccountsController],
   providers: [
     AuthService,
     AuthAuditService,
+    AccountsService,
     RefreshTokenService,
     JwtStrategy,
     // Global guards run in this order: authentication first, then roles.

@@ -1,7 +1,6 @@
 import { User } from '../entities/user.entity';
 
-// The member part as the members entity is today. Deposit verification fields
-// arrive when the members table changes (feature 7).
+// blocked_until is deliberately absent: "blocked" belongs to Circulation.
 export interface MemberSummary {
   id: string;
   memberCode: string;
@@ -9,6 +8,7 @@ export interface MemberSummary {
   membershipDate: string;
   expiryDate: string | null;
   depositAmount: number;
+  depositVerifiedAt: Date | null;
 }
 
 export interface UserProfileResponse {
@@ -47,6 +47,7 @@ export function toUserProfile(user: User): UserProfileResponse {
           expiryDate: member.expiryDate ?? null,
           // Postgres decimals arrive as strings.
           depositAmount: Number(member.depositAmount),
+          depositVerifiedAt: member.depositVerifiedAt ?? null,
         }
       : null,
   };

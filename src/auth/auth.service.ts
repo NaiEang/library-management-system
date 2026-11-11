@@ -18,15 +18,23 @@ import { normalizeEmail } from '../users/normalize';
 import { LoginCandidate, UsersService } from '../users/users.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { authConfig } from './config/auth.config';
-import { LoginResponse, RegisterResponse } from './dto/auth-responses';
+import {
+  LoginResponse,
+  RegisterResponse,
+  TokenResponse,
+} from './dto/auth-responses';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RegisterDto } from './dto/register.dto';
 import { checkPasswordPolicy } from './password/password-policy';
 import { PasswordService } from './password/password.service';
-import {
-  IssuedRefreshToken,
-  RefreshTokenService,
-} from './tokens/refresh-token.service';
-import { JwtPayload } from './types/auth-user';
+import { RefreshTokenService } from './tokens/refresh-token.service';
+import type { AuthUser, JwtPayload } from './types/auth-user';
+import { toAuthUser } from './types/to-auth-user';
+
+export interface ClientInfo {
+  ip?: string;
+  userAgent?: string;
+}
 
 export interface LoginInput {
   email: string;
@@ -35,14 +43,10 @@ export interface LoginInput {
   userAgent?: string;
 }
 
-export interface LoginResult {
-  body: LoginResponse;
-  refresh: IssuedRefreshToken;
-}
-
 // One message for every failure, so the response never reveals whether the
 // email exists, the password was wrong or the account is disabled.
 const INVALID_CREDENTIALS = 'Invalid email or password';
+const INVALID_REFRESH_TOKEN = 'Invalid or expired refresh token';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -71,7 +75,7 @@ export class AuthService implements OnModuleInit {
     password,
     ip,
     userAgent,
-  }: LoginInput): Promise<LoginResult> {
+  }: LoginInput): Promise<LoginResponse> {
     const normalizedEmail = normalizeEmail(email);
     const candidate = await this.usersService.findForLogin(normalizedEmail);
     // Always run one argon2 verification, found or not.
@@ -110,20 +114,93 @@ export class AuthService implements OnModuleInit {
       ip,
     });
     return {
-      body: {
-        accessToken,
-        tokenType: 'Bearer',
-        expiresIn: this.config.jwtAccessTtlSeconds,
-        user: {
-          id: candidate.id,
-          email: candidate.email,
-          username: candidate.username,
-          role,
-          membershipStatus: candidate.membershipStatus,
-        },
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn: this.config.jwtAccessTtlSeconds,
+      refreshToken: refresh.token,
+      refreshTokenExpiresAt: refresh.expiresAt,
+      user: {
+        id: candidate.id,
+        email: candidate.email,
+        username: candidate.username,
+        role,
+        membershipStatus: candidate.membershipStatus,
       },
-      refresh,
     };
+  }
+
+  // One refresh token in, a new pair out. A token that was already used ends
+  // the whole login session (someone kept or stole a copy).
+  async refresh(
+    rawToken: string,
+    client: ClientInfo = {},
+  ): Promise<TokenResponse> {
+    const result = await this.refreshTokens.rotate(rawToken, client);
+    if (result.outcome === 'reuse') {
+      this.audit.record('REFRESH_TOKEN_REUSE', {
+        userId: result.userId,
+        ip: client.ip,
+      });
+      throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
+    }
+    if (result.outcome === 'invalid') {
+      throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
+    }
+
+    // Same account rules as the guard: a disabled or broken account gets no
+    // new access token, and its session ends.
+    const check = toAuthUser(
+      await this.usersService.findForAuth(result.userId),
+    );
+    if (!check.ok) {
+      await this.refreshTokens.revokeFamily(result.familyId);
+      throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
+    }
+    const payload: JwtPayload = { sub: check.user.id, role: check.user.role };
+    return {
+      accessToken: await this.jwtService.signAsync(payload),
+      tokenType: 'Bearer',
+      expiresIn: this.config.jwtAccessTtlSeconds,
+      refreshToken: result.token,
+      refreshTokenExpiresAt: result.expiresAt,
+    };
+  }
+
+  // Ends the login session the refresh token belongs to. Always succeeds.
+  logout(rawToken: string): Promise<void> {
+    return this.refreshTokens.revokeFamilyOf(rawToken);
+  }
+
+  // Any logged-in user. Ends every session of the user, so they log in again
+  // with the new password (an attacker holding an old session is locked out).
+  async changePassword(user: AuthUser, dto: ChangePasswordDto): Promise<void> {
+    const currentHash = await this.usersService.findPasswordHash(user.id);
+    // The guard already checked the user exists; a missing hash is bad data.
+    if (
+      !currentHash ||
+      !(await this.passwordService.verify(currentHash, dto.currentPassword))
+    ) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+    if (await this.passwordService.verify(currentHash, dto.newPassword)) {
+      throw new BadRequestException(
+        'The new password must be different from the current one',
+      );
+    }
+    const profile = await this.usersService.findProfile(user.id);
+    const problems = checkPasswordPolicy(dto.newPassword, {
+      email: profile?.email,
+      username: profile?.username,
+    });
+    if (problems.length > 0) {
+      throw new BadRequestException(problems);
+    }
+
+    const newHash = await this.passwordService.hash(dto.newPassword);
+    await this.usersService.inTransaction(async (manager) => {
+      await this.usersService.updatePasswordHash(user.id, newHash, manager);
+      await this.refreshTokens.revokeAllForUser(user.id, manager);
+    });
   }
 
   // Self sign-up: always a MEMBER whose membership waits for the deposit.

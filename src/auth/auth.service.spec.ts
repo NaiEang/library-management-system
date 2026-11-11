@@ -5,7 +5,11 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RoleName } from '../common/constants';
-import { LoginCandidate, UsersService } from '../users/users.service';
+import {
+  AuthUserRecord,
+  LoginCandidate,
+  UsersService,
+} from '../users/users.service';
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthService } from './auth.service';
 import { AuthConfig } from './config/auth.config';
@@ -25,9 +29,30 @@ const member: LoginCandidate = {
 };
 
 async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
+  const transactionManager = { id: 'tx' };
   const usersService = {
     findForLogin: vi.fn(() => Promise.resolve(candidate)),
+    findForAuth: vi.fn((): Promise<AuthUserRecord | null> =>
+      Promise.resolve({
+        id: '3',
+        username: 'goodstudent',
+        status: 'active',
+        roleName: 'member',
+        memberId: '30',
+      }),
+    ),
     recordLogin: vi.fn(() => Promise.resolve()),
+    findPasswordHash: vi.fn(() => Promise.resolve('$argon2id$current')),
+    findProfile: vi.fn(() =>
+      Promise.resolve({
+        email: 'good.student@demo.com',
+        username: 'goodstudent',
+      }),
+    ),
+    updatePasswordHash: vi.fn(() => Promise.resolve()),
+    inTransaction: vi.fn((work: (m: unknown) => Promise<unknown>) =>
+      work(transactionManager),
+    ),
     registerMember: vi.fn(() =>
       Promise.resolve({
         id: '41',
@@ -40,12 +65,18 @@ async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
   };
   const passwordService = {
     hash: vi.fn(() => Promise.resolve('$argon2id$dummy')),
-    verify: vi.fn(() => Promise.resolve(passwordMatches)),
+    verify: vi.fn((_hash: string, _password: string) =>
+      Promise.resolve(passwordMatches),
+    ),
   };
   const refreshTokens = {
     issue: vi.fn(() =>
       Promise.resolve({ token: 'raw-refresh', expiresAt: new Date() }),
     ),
+    revokeAllForUser: vi.fn(() => Promise.resolve(2)),
+    rotate: vi.fn(),
+    revokeFamily: vi.fn(() => Promise.resolve(1)),
+    revokeFamilyOf: vi.fn(() => Promise.resolve()),
   };
   const jwtService = { signAsync: vi.fn(() => Promise.resolve('signed.jwt')) };
   const audit = { record: vi.fn() };
@@ -65,6 +96,7 @@ async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
     refreshTokens,
     jwtService,
     audit,
+    transactionManager,
   };
 }
 
@@ -95,10 +127,12 @@ describe('AuthService.login', () => {
       userAgent: 'vitest',
     });
     expect(usersService.recordLogin).toHaveBeenCalledWith('3');
-    expect(result.body).toEqual({
+    expect(result).toEqual({
       accessToken: 'signed.jwt',
       tokenType: 'Bearer',
       expiresIn: 900,
+      refreshToken: 'raw-refresh',
+      refreshTokenExpiresAt: expect.any(Date),
       user: {
         id: '3',
         email: member.email,
@@ -107,7 +141,6 @@ describe('AuthService.login', () => {
         membershipStatus: 'pending_deposit',
       },
     });
-    expect(result.refresh.token).toBe('raw-refresh');
   });
 
   it('checks an unknown email against the dummy hash, so it takes as long as a wrong password', async () => {
@@ -242,5 +275,173 @@ describe('AuthService.register', () => {
     await expect(service.register(dto)).rejects.toThrow(
       'Email already registered',
     );
+  });
+});
+
+describe('AuthService.changePassword', () => {
+  const user = {
+    id: '3',
+    username: 'goodstudent',
+    role: RoleName.MEMBER,
+    memberId: '30',
+  };
+  const dto = {
+    currentPassword: 'old long passphrase',
+    newPassword: 'a brand new passphrase',
+  };
+
+  it('checks the current password, hashes the new one and ends every session, in one transaction', async () => {
+    const {
+      service,
+      passwordService,
+      usersService,
+      refreshTokens,
+      transactionManager,
+    } = await setup(null);
+    passwordService.verify.mockImplementation(
+      (_hash: string, password: string) =>
+        Promise.resolve(password === dto.currentPassword),
+    );
+    await service.changePassword(user, dto);
+    expect(passwordService.hash).toHaveBeenLastCalledWith(dto.newPassword);
+    expect(usersService.updatePasswordHash).toHaveBeenCalledWith(
+      '3',
+      '$argon2id$dummy',
+      transactionManager,
+    );
+    expect(refreshTokens.revokeAllForUser).toHaveBeenCalledWith(
+      '3',
+      transactionManager,
+    );
+  });
+
+  it('a wrong current password → 400, nothing changes', async () => {
+    const { service, usersService, refreshTokens } = await setup(null, false);
+    await expect(service.changePassword(user, dto)).rejects.toThrow(
+      'Current password is incorrect',
+    );
+    expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
+    expect(refreshTokens.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('the same password again → 400', async () => {
+    const { service, usersService } = await setup(null, true);
+    await expect(service.changePassword(user, dto)).rejects.toThrow(
+      /must be different/,
+    );
+    expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['too short', 'short1', /at least 8/],
+    ['common', 'password1', /too common/],
+    ['equal to the username', 'GoodStudent', /email or username/],
+  ])('a new password that is %s → 400', async (_label, newPassword, rule) => {
+    const { service, passwordService, usersService } = await setup(null);
+    passwordService.verify.mockImplementation(
+      (_hash: string, password: string) =>
+        Promise.resolve(password === dto.currentPassword),
+    );
+    const error = await service
+      .changePassword(user, { ...dto, newPassword })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect(
+      JSON.stringify((error as BadRequestException).getResponse()),
+    ).toMatch(rule);
+    expect(usersService.updatePasswordHash).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.refresh', () => {
+  const TOKEN = 'a'.repeat(43);
+  const rotated = {
+    outcome: 'rotated' as const,
+    userId: '3',
+    familyId: 'fam-1',
+    token: 'new-refresh',
+    expiresAt: new Date('2026-11-16T00:00:00Z'),
+  };
+
+  it('returns a new access token (role from the database) and the new refresh token', async () => {
+    const { service, refreshTokens, jwtService } = await setup(null);
+    refreshTokens.rotate.mockResolvedValue(rotated);
+    await expect(service.refresh(TOKEN, { ip: '1.2.3.4' })).resolves.toEqual({
+      accessToken: 'signed.jwt',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      refreshToken: 'new-refresh',
+      refreshTokenExpiresAt: rotated.expiresAt,
+    });
+    expect(refreshTokens.rotate).toHaveBeenCalledWith(TOKEN, { ip: '1.2.3.4' });
+    expect(jwtService.signAsync).toHaveBeenCalledWith({
+      sub: '3',
+      role: 'member',
+    });
+  });
+
+  it('reuse of an old token → 401 and a REFRESH_TOKEN_REUSE audit event (never the token itself)', async () => {
+    const { service, refreshTokens, audit, jwtService } = await setup(null);
+    refreshTokens.rotate.mockResolvedValue({
+      outcome: 'reuse',
+      userId: '3',
+      familyId: 'fam-1',
+    });
+    await expect(service.refresh(TOKEN, { ip: '1.2.3.4' })).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(audit.record).toHaveBeenCalledWith('REFRESH_TOKEN_REUSE', {
+      userId: '3',
+      ip: '1.2.3.4',
+    });
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain(TOKEN);
+    expect(jwtService.signAsync).not.toHaveBeenCalled();
+  });
+
+  it('an unknown, expired or logged-out token → 401, no audit alarm', async () => {
+    const { service, refreshTokens, audit } = await setup(null);
+    refreshTokens.rotate.mockResolvedValue({ outcome: 'invalid' });
+    await expect(service.refresh(TOKEN)).rejects.toThrow(
+      'Invalid or expired refresh token',
+    );
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['disabled', { status: 'disabled' }],
+    ['deleted', null],
+    ['with a broken member (no member row)', { memberId: null }],
+  ])(
+    'an account that is %s → 401 and the session is ended',
+    async (_label, change) => {
+      const { service, refreshTokens, usersService, jwtService } =
+        await setup(null);
+      refreshTokens.rotate.mockResolvedValue(rotated);
+      usersService.findForAuth.mockResolvedValue(
+        change === null
+          ? null
+          : {
+              id: '3',
+              username: 'goodstudent',
+              status: 'active',
+              roleName: 'member',
+              memberId: '30',
+              ...change,
+            },
+      );
+      await expect(service.refresh(TOKEN)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(refreshTokens.revokeFamily).toHaveBeenCalledWith('fam-1');
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('AuthService.logout', () => {
+  it('ends the session the refresh token belongs to', async () => {
+    const { service, refreshTokens } = await setup(null);
+    await service.logout('b'.repeat(43));
+    expect(refreshTokens.revokeFamilyOf).toHaveBeenCalledWith('b'.repeat(43));
   });
 });

@@ -1,0 +1,142 @@
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { AuthConfig } from '../auth/config/auth.config';
+import { Member } from './entities/member.entity';
+import { escapeLike, MembersService } from './members.service';
+
+const config = {
+  libraryTimeZone: 'Asia/Phnom_Penh',
+  depositAmount: 5,
+} as AuthConfig;
+
+const pendingMember = () => ({
+  id: '30',
+  userId: '3',
+  memberCode: 'LF-2026-ABCDEF',
+  membershipStatus: 'pending_deposit',
+  membershipDate: '2026-11-01',
+  expiryDate: null,
+  depositAmount: '0.00',
+  depositVerifiedAt: null,
+  depositVerifiedBy: null,
+});
+
+const activeUser = {
+  id: '3',
+  email: 'member@demo.test',
+  username: 'member',
+  status: 'active',
+};
+
+// Plain objects shaped like the rows the database returns.
+function setup(
+  member: Record<string, unknown> | null,
+  user: Record<string, unknown> | null = activeUser,
+  affected = 1,
+) {
+  const lockedQuery = {
+    setLock: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    getOne: vi.fn(() => Promise.resolve(member)),
+  };
+  const manager = {
+    createQueryBuilder: vi.fn(() => lockedQuery),
+    findOne: vi.fn(() => Promise.resolve(user)),
+    update: vi.fn(() => Promise.resolve({ affected })),
+  };
+  const transaction = vi.fn((work: (m: typeof manager) => Promise<unknown>) =>
+    work(manager),
+  );
+  const service = new MembersService(
+    { manager: { transaction } } as unknown as Repository<Member>,
+    config,
+  );
+  return { service, manager, lockedQuery, transaction };
+}
+
+describe('MembersService.verifyDeposit', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('activates the membership: deposit from config, who and when, expiry = library date + 1 year', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-09T05:00:00Z') });
+    const { service, manager, lockedQuery } = setup(pendingMember());
+    const result = await service.verifyDeposit('3', '2');
+
+    expect(lockedQuery.setLock).toHaveBeenCalledWith('pessimistic_write');
+    expect(manager.update).toHaveBeenCalledWith(
+      Member,
+      { id: '30', membershipStatus: 'pending_deposit' },
+      {
+        depositAmount: 5,
+        membershipStatus: 'active',
+        depositVerifiedAt: new Date('2026-11-09T05:00:00Z'),
+        depositVerifiedBy: '2',
+        expiryDate: '2027-11-09',
+      },
+    );
+    expect(result).toMatchObject({
+      userId: '3',
+      memberId: '30',
+      membershipStatus: 'active',
+      depositAmount: 5,
+      expiryDate: '2027-11-09',
+    });
+    expect(result).not.toHaveProperty('blockedUntil');
+  });
+
+  it('uses the Phnom Penh date: 18:00 UTC on Nov 9 is already Nov 10 at the library', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-09T18:00:00Z') });
+    const { service, manager } = setup(pendingMember());
+    await service.verifyDeposit('3', '2');
+    expect((manager.update.mock.calls[0] as unknown[])[2]).toMatchObject({
+      expiryDate: '2027-11-10',
+    });
+  });
+
+  it('a member who is not waiting for a deposit → 409, nothing written', async () => {
+    const { service, manager } = setup({
+      ...pendingMember(),
+      membershipStatus: 'active',
+    });
+    await expect(service.verifyDeposit('3', '2')).rejects.toThrow(
+      ConflictException,
+    );
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('if another staff member activated it in between, the conditional update changes nothing → 409', async () => {
+    const { service } = setup(pendingMember(), activeUser, 0);
+    await expect(service.verifyDeposit('3', '2')).rejects.toThrow(
+      /already verified/,
+    );
+  });
+
+  it('a disabled account → 409, nothing written', async () => {
+    const { service, manager } = setup(pendingMember(), {
+      ...activeUser,
+      status: 'disabled',
+    });
+    await expect(service.verifyDeposit('3', '2')).rejects.toThrow(
+      'This account is disabled',
+    );
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('a user who is not a member (e.g. a librarian) → 404', async () => {
+    const { service } = setup(null);
+    await expect(service.verifyDeposit('2', '1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+});
+
+describe('escapeLike', () => {
+  it.each([
+    ['50%', '50\\%'],
+    ['a_b', 'a\\_b'],
+    ['back\\slash', 'back\\\\slash'],
+    ['plain', 'plain'],
+  ])('%s → %s', (input, expected) => {
+    expect(escapeLike(input)).toBe(expected);
+  });
+});

@@ -31,3 +31,7 @@ export function emailTracker(req: Record<string, any>): string {
 // Register: 5 sign-ups per hour per IP. Applied with @Throttle on the route;
 // the route skips the "email" throttler.
 export const REGISTER_THROTTLE = { ip: { limit: 5, ttl: 60 * 60_000 } };
+
+// Password change: 5 attempts per 15 minutes per IP, so a stolen access token
+// can't be used to guess the current password quickly.
+export const PASSWORD_CHANGE_THROTTLE = { ip: { limit: 5, ttl: 15 * 60_000 } };

@@ -20,3 +20,13 @@ export function isValidTimeZone(timeZone: string): boolean {
     return false;
   }
 }
+
+// Adds whole years to a YYYY-MM-DD date. Feb 29 becomes Feb 28 in a non-leap
+// year, so a membership never ends in the following month.
+export function addYears(date: string, years: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const target = year + years;
+  const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const safeDay = month === 2 && day === 29 && !isLeap(target) ? 28 : day;
+  return `${String(target).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+}
