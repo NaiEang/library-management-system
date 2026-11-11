@@ -82,9 +82,8 @@ database on every request; it is undefined on `@Public()` routes.
 
 `npm run test:e2e` rebuilds `libraflow_test` from the entities, loads small fixtures with known
 numbers (`test/setup/fixtures.ts`), and boots the real `AppModule`. It expects
-`postgres://libraflow:libraflow@localhost:5432/libraflow_test` (Docker creates it; with Homebrew run
-`createdb -O libraflow libraflow_test`), or set `TEST_DATABASE_URL`. CI runs the same suite against a
-Postgres service container.
+`postgres://libraflow:libraflow@localhost:5432/libraflow_test` (created on the first run if it is
+missing), or set `TEST_DATABASE_URL`. CI runs the same suite against a Postgres service container.
 
 ## Docker
 
