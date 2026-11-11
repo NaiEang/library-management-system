@@ -9,4 +9,10 @@ export const TEST_ENV = {
   FRONTEND_ORIGIN: 'http://localhost:5173',
   LOG_FILE: '',
   LOG_STDOUT: 'false',
+  // Keeps test queue jobs apart from a dev server sharing the same Redis
+  BULLMQ_PREFIX: 'bull-e2e',
+  // The cron stays off; specs call POST /notifications/overdue/scan instead
+  OVERDUE_SCAN_CRON: 'off',
+  // Reminders go to the log, never to a real mailbox
+  SMTP_HOST: '',
 };

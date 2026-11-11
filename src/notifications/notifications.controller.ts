@@ -1,7 +1,12 @@
 import { Controller,Post, Body } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RoleName } from '../common/constants';
 import { NotificationsService } from './notifications.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 
+@ApiTags('notifications')
+@ApiBearerAuth()
 @Controller('notifications')
 export class NotificationsController {
   constructor(
@@ -9,6 +14,8 @@ export class NotificationsController {
   ) {}
 
 
+  // Staff only: it can address a notification to any user
+  @Roles(RoleName.ADMIN, RoleName.LIBRARIAN)
   @Post()
   create(@Body() dto: CreateNotificationDto) {
     return this.notificationsService.create(dto);

@@ -1,132 +1,173 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { DataSource, In } from 'typeorm';
-import { Loan } from './entities/loan.entity';
-import { LoanItem } from './entities/loan-item.entity';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { BookCopy } from '../books/entities/book-copy.entity';
+import { CopyStatus, LoanItemStatus, LoanStatus } from '../common/constants';
 import { Member } from '../members/entities/member.entity';
+import { LoanItem } from './entities/loan-item.entity';
+import { Loan } from './entities/loan.entity';
+
+const BORROW_PERIOD_DAYS = 14;
+const REQUIRED_DEPOSIT = 5;
 
 @Injectable()
 export class LoansService {
-  constructor(private dataSource: DataSource) {}
+  constructor(
+    @InjectRepository(Loan)
+    private readonly loanRepository: Repository<Loan>,
+    @InjectRepository(LoanItem)
+    private readonly loanItemRepository: Repository<LoanItem>,
+    @InjectRepository(BookCopy)
+    private readonly bookCopyRepository: Repository<BookCopy>,
+    @InjectRepository(Member)
+    private readonly memberRepository: Repository<Member>,
+  ) {}
 
-  async requestLoan(memberId: string, bookCopyIds: string[]) {
-    return this.dataSource.transaction(async (manager) => {
-      // 1. Validate Member & Deposit
-      const member = await manager.findOne(Member, { where: { id: memberId } });
+  async requestLoan(memberId: string, bookCopyIds: string[]): Promise<Loan> {
+    return this.inTransaction(async (repos) => {
+      const member = await repos.members.findOne({ where: { id: memberId } });
       if (!member) throw new NotFoundException('Member not found');
-      
-      if (Number(member.depositAmount) < 5) {
-        throw new BadRequestException('Account not verified. A $5 deposit is required.');
+
+      if (Number(member.depositAmount) < REQUIRED_DEPOSIT) {
+        throw new BadRequestException(
+          `Account not verified. A $${REQUIRED_DEPOSIT} deposit is required.`,
+        );
       }
 
-      // 2. Enforce Late Block Rule (Check if member has any OVERDUE items)
-      const overdueItems = await manager.createQueryBuilder(LoanItem, 'item')
-        .innerJoin('item.loan', 'loan')
-        .where('loan.member_id = :memberId', { memberId })
-        .andWhere('item.status = :status', { status: 'BORROWED' })
-        .andWhere('item.due_date < :now', { now: new Date() })
-        .getCount();
-
-      if (overdueItems > 0) {
+      // Late Block Rule: a late-return penalty still running, or any
+      // unreturned item past its due date (marked overdue yet or not)
+      const now = new Date();
+      if (member.blockedUntil && member.blockedUntil > now) {
+        throw new BadRequestException('Account blocked: late-return penalty is still active.');
+      }
+      if ((await this.countOverdueItems(repos.loanItems, memberId, now)) > 0) {
         throw new BadRequestException('Account blocked: You have overdue books.');
       }
 
-      // 3. Verify Copies are Available
-      const copies = await manager.findBy(BookCopy, { id: In(bookCopyIds) });
-      if (copies.length !== bookCopyIds.length) {
+      // Locked so two requests can't reserve the same copy at once
+      const copies = await repos.bookCopies.find({
+        where: { id: In(bookCopyIds) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (copies.length !== new Set(bookCopyIds).size) {
         throw new NotFoundException('One or more book copies not found.');
       }
-
-      for (const copy of copies) {
-        if (copy.status !== 'AVAILABLE') {
-          throw new BadRequestException(`Copy ${copy.id} is ${copy.status}.`);
-        }
+      const unavailable = copies.find((copy) => copy.status !== CopyStatus.AVAILABLE);
+      if (unavailable) {
+        throw new BadRequestException(`Copy ${unavailable.id} is ${unavailable.status}.`);
       }
 
-      // 4. Create Loan
-      const loan = manager.create(Loan, {
-        memberId,
-        loanDate: new Date(),
-        status: 'PENDING',
-        loanCode: `LN-${Date.now()}`,
-      });
-      const savedLoan = await manager.save(loan);
+      const loan = await repos.loans.save(
+        repos.loans.create({
+          memberId,
+          loanDate: now,
+          status: LoanStatus.PENDING,
+          loanCode: `LN-${Date.now()}`,
+        }),
+      );
 
-      // 5. Create Loan Items mapped to your new schema
-      const loanItems = copies.map((copy: BookCopy) => {
-        copy.status = 'RESERVED'; 
-        return manager.create(LoanItem, {
-          loanId: savedLoan.id,
-          bookCopyId: copy.id,
-          status: 'PENDING',
-        });
-      });
+      for (const copy of copies) copy.status = CopyStatus.RESERVED;
+      await repos.bookCopies.save(copies);
+      await repos.loanItems.save(
+        copies.map((copy) =>
+          repos.loanItems.create({
+            loanId: loan.id,
+            bookCopyId: copy.id,
+            status: LoanItemStatus.REQUESTED,
+          }),
+        ),
+      );
 
-      await manager.save(BookCopy, copies);
-      await manager.save(LoanItem, loanItems);
-
-      return savedLoan;
+      return loan;
     });
   }
 
-  async approveLoan(loanId: string) {
-    return this.dataSource.transaction(async (manager) => {
-      const loan = await manager.findOne(Loan, { 
-        where: { id: loanId },
-        relations: { loanItems: { bookCopy: true } } 
-      });
+  async approveLoan(loanId: string): Promise<Loan> {
+    return this.inTransaction(async (repos) => {
+      const loan = await this.findLoanWithItems(repos.loans, loanId);
+      if (!loan || loan.status !== LoanStatus.PENDING) {
+        throw new BadRequestException('Valid pending loan not found.');
+      }
 
-      if (!loan || loan.status !== 'PENDING') throw new BadRequestException('Valid pending loan not found.');
-
-      loan.status = 'ACTIVE';
       const now = new Date();
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 14); // 14-day borrow period
+      const dueDate = new Date(now);
+      dueDate.setDate(dueDate.getDate() + BORROW_PERIOD_DAYS);
 
-      const copiesToUpdate: BookCopy[] = [];
-      
-      // Update dates on the individual items based on your new schema
-      loan.loanItems.forEach((item: LoanItem) => {
-        item.status = 'BORROWED';
+      loan.status = LoanStatus.ACTIVE;
+      for (const item of loan.loanItems) {
+        item.status = LoanItemStatus.BORROWED;
         item.borrowedAt = now;
         item.dueDate = dueDate;
-        
-        item.bookCopy.status = 'BORROWED';
-        copiesToUpdate.push(item.bookCopy);
-      });
+        item.bookCopy.status = CopyStatus.BORROWED;
+      }
 
-      await manager.save(BookCopy, copiesToUpdate);
-      await manager.save(LoanItem, loan.loanItems);
-      return manager.save(loan);
+      await repos.bookCopies.save(loan.loanItems.map((item) => item.bookCopy));
+      await repos.loanItems.save(loan.loanItems);
+      return repos.loans.save(loan);
     });
   }
-  
-  async returnLoan(loanId: string) {
-    return this.dataSource.transaction(async (manager) => {
-      const loan = await manager.findOne(Loan, { 
-        where: { id: loanId },
-        relations: { loanItems: { bookCopy: true } }
-      });
 
-      if (!loan || loan.status !== 'ACTIVE') {
+  async returnLoan(loanId: string): Promise<Loan> {
+    return this.inTransaction(async (repos) => {
+      const loan = await this.findLoanWithItems(repos.loans, loanId);
+      if (!loan || loan.status !== LoanStatus.ACTIVE) {
         throw new BadRequestException('Active loan not found.');
       }
 
-      loan.status = 'COMPLETED';
       const now = new Date();
-      const copiesToUpdate: BookCopy[] = [];
-
-      loan.loanItems.forEach((item: LoanItem) => {
-        item.status = 'RETURNED';
+      loan.status = LoanStatus.COMPLETED;
+      for (const item of loan.loanItems) {
+        item.status = LoanItemStatus.RETURNED;
         item.returnedAt = now;
-        
-        item.bookCopy.status = 'AVAILABLE';
-        copiesToUpdate.push(item.bookCopy);
-      });
+        item.bookCopy.status = CopyStatus.AVAILABLE;
+      }
 
-      await manager.save(BookCopy, copiesToUpdate);
-      await manager.save(LoanItem, loan.loanItems);
-      return manager.save(loan);
+      await repos.bookCopies.save(loan.loanItems.map((item) => item.bookCopy));
+      await repos.loanItems.save(loan.loanItems);
+      return repos.loans.save(loan);
     });
   }
+
+  // Runs `work` in one database transaction, with every repository bound to it
+  private inTransaction<T>(work: (repos: LoanRepositories) => Promise<T>): Promise<T> {
+    return this.loanRepository.manager.transaction((manager: EntityManager) =>
+      work({
+        loans: manager.withRepository(this.loanRepository),
+        loanItems: manager.withRepository(this.loanItemRepository),
+        bookCopies: manager.withRepository(this.bookCopyRepository),
+        members: manager.withRepository(this.memberRepository),
+      }),
+    );
+  }
+
+  private findLoanWithItems(loans: Repository<Loan>, loanId: string): Promise<Loan | null> {
+    return loans.findOne({
+      where: { id: loanId },
+      relations: { loanItems: { bookCopy: true } },
+    });
+  }
+
+  private countOverdueItems(
+    loanItems: Repository<LoanItem>,
+    memberId: string,
+    now: Date,
+  ): Promise<number> {
+    return loanItems
+      .createQueryBuilder('item')
+      .innerJoin('item.loan', 'loan')
+      .where('loan.member_id = :memberId', { memberId })
+      .andWhere('item.returned_at IS NULL')
+      .andWhere('item.status IN (:...statuses)', {
+        statuses: [LoanItemStatus.BORROWED, LoanItemStatus.OVERDUE],
+      })
+      .andWhere('item.due_date < :now', { now })
+      .getCount();
+  }
+}
+
+interface LoanRepositories {
+  loans: Repository<Loan>;
+  loanItems: Repository<LoanItem>;
+  bookCopies: Repository<BookCopy>;
+  members: Repository<Member>;
 }

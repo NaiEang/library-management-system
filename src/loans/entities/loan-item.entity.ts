@@ -23,7 +23,7 @@ export class LoanItem {
   returnedAt: Date | null;
 
   @Column({ type: 'varchar' })
-  status: string; // e.g., 'PENDING', 'BORROWED', 'RETURNED', 'OVERDUE'
+  status: string; // LoanItemStatus (common/constants): requested, borrowed, overdue, returned
 
   @Column({ name: 'fine_amount', type: 'numeric', precision: 10, scale: 2, default: 0 })
   fineAmount: number;
