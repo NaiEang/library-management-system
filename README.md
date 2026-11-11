@@ -19,7 +19,7 @@ npm run simulate -- 300  # optional: 5 min of dummy traffic for traces and metri
 
 Every route needs a login unless it's marked `@Public()`. Log in with `POST /auth/login`
 and send `Authorization: Bearer <accessToken>` (tokens last 15 minutes). After `seed:dev`,
-the accounts are `admin@libraflow.local`, `librarian1..4@libraflow.local` and
+the accounts are `admin@libraflow.local`, `manager1@libraflow.local`, `librarian1..4@libraflow.local` and
 `member1..3@libraflow.local`, all with the password `libraflow-dev-password` (set
 `SEED_DEV_PASSWORD` to change it). On a real database, create the first admin with
 `npm run seed:admin` instead.
@@ -65,6 +65,9 @@ login(...) {}
 **Roles.** The auth module (`src/auth`) registers a global JWT guard and a global
 `RolesGuard`. `@Roles(RoleName.ADMIN, RoleName.LIBRARIAN)` restricts a route, `@Public()`
 opens it to guests, and a route with neither accepts any logged-in user, members included.
+Staff roles form a ladder, admin > manager > librarian: a route for `RoleName.LIBRARIAN`
+also lets managers and admins in, and one for `RoleName.MANAGER` lets admins in. Members
+stand apart.
 `request.user` (and `@CurrentUser()`) is `{ id, username, role, memberId? }`, loaded from the
 database on every request; it is undefined on `@Public()` routes.
 

@@ -206,6 +206,18 @@ export class AuthService implements OnModuleInit {
   // Self sign-up: always a MEMBER whose membership waits for the deposit.
   // Doesn't log the user in. Email and username arrive normalized (DTO).
   async register(dto: RegisterDto): Promise<RegisterResponse> {
+    // The email is the identifier shared with Space Booking, so members must
+    // sign up with a school address when MEMBER_EMAIL_DOMAINS is set. It
+    // doesn't prove ownership: the librarian's desk check (deposit) does.
+    const allowed = this.config.memberEmailDomains;
+    if (
+      allowed.length > 0 &&
+      !allowed.includes(dto.email.split('@').pop() ?? '')
+    ) {
+      throw new BadRequestException(
+        `Please sign up with your school email (${allowed.map((d) => `@${d}`).join(' or ')})`,
+      );
+    }
     const problems = checkPasswordPolicy(dto.password, {
       email: dto.email,
       username: dto.username,

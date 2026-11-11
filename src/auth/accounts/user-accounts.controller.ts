@@ -21,7 +21,8 @@ import { SetAccountStatusDto } from './dto/set-status.dto';
 export class UserAccountsController {
   constructor(private readonly accounts: AccountsService) {}
 
-  @Roles(RoleName.ADMIN)
+  // Managers and admins; who may change whom is checked in the service.
+  @Roles(RoleName.MANAGER)
   @LogActivity({ action: 'SET_ACCOUNT_STATUS', entityType: 'User' })
   @Patch(':id/status')
   setStatus(
@@ -32,7 +33,9 @@ export class UserAccountsController {
     return this.accounts.setStatus(id, dto.enabled, actor);
   }
 
-  @Roles(RoleName.ADMIN, RoleName.LIBRARIAN)
+  // Every staff role (the ladder lets managers and admins in); who may reset
+  // whom is checked in the service.
+  @Roles(RoleName.LIBRARIAN)
   @LogActivity({ action: 'RESET_PASSWORD', entityType: 'User' })
   @Header('Cache-Control', 'no-store')
   @Post(':id/reset-password')

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { QueryFailedError, Repository } from 'typeorm';
 import { AuthConfig } from '../auth/config/auth.config';
+import { RoleName } from '../common/constants';
 import { PasswordService } from '../auth/password/password.service';
 import { Member } from '../members/entities/member.entity';
 import { Role } from './entities/role.entity';
@@ -274,7 +275,7 @@ describe('uniqueViolationColumn', () => {
   });
 });
 
-describe('UsersService.createLibrarian', () => {
+describe('UsersService.createStaff', () => {
   const staff = {
     email: 'desk.librarian@libraflow.test',
     username: 'desk.librarian',
@@ -285,7 +286,9 @@ describe('UsersService.createLibrarian', () => {
 
   it('creates an active LIBRARIAN with a hashed password and no member row', async () => {
     const { service, manager, inserted } = registerSetup({ role: { id: 2 } });
-    await expect(service.createLibrarian(staff)).resolves.toEqual({
+    await expect(
+      service.createStaff(RoleName.LIBRARIAN, staff),
+    ).resolves.toEqual({
       id: '41',
       email: staff.email,
       username: staff.username,
@@ -308,9 +311,23 @@ describe('UsersService.createLibrarian', () => {
     expect(manager.insert).not.toHaveBeenCalledWith(Member, expect.anything());
   });
 
+  it('creates a manager the same way, with the MANAGER role', async () => {
+    const { service, manager } = registerSetup({ role: { id: 4 } });
+    await expect(
+      service.createStaff(RoleName.MANAGER, staff),
+    ).resolves.toMatchObject({
+      role: 'manager',
+      status: 'active',
+    });
+    expect(manager.findOne).toHaveBeenCalledWith(
+      Role,
+      expect.objectContaining({ where: { name: 'manager' } }),
+    );
+  });
+
   it('never returns or stores the plain password', async () => {
     const { service, inserted } = registerSetup({ role: { id: 2 } });
-    const result = await service.createLibrarian(staff);
+    const result = await service.createStaff(RoleName.LIBRARIAN, staff);
     expect(JSON.stringify(result)).not.toContain(staff.password);
     expect(JSON.stringify(inserted(User))).not.toContain(staff.password);
   });
@@ -324,7 +341,7 @@ describe('UsersService.createLibrarian', () => {
     async (_label, password, rule) => {
       const { service, transaction } = registerSetup();
       const error = await service
-        .createLibrarian({ ...staff, password })
+        .createStaff(RoleName.LIBRARIAN, { ...staff, password })
         .catch((e: unknown) => e);
       expect(error).toBeInstanceOf(BadRequestException);
       expect(
@@ -352,15 +369,15 @@ describe('UsersService.createLibrarian', () => {
     ],
   ])('a taken %s → 409', async (_label, options, message) => {
     const { service } = registerSetup({ role: { id: 2 }, ...options });
-    await expect(service.createLibrarian(staff)).rejects.toThrow(
-      new ConflictException(message),
-    );
+    await expect(
+      service.createStaff(RoleName.LIBRARIAN, staff),
+    ).rejects.toThrow(new ConflictException(message));
   });
 
   it('fails safely when the LIBRARIAN role is missing', async () => {
     const { service } = registerSetup({ role: null });
-    await expect(service.createLibrarian(staff)).rejects.toThrow(
-      /Role librarian not found/,
-    );
+    await expect(
+      service.createStaff(RoleName.LIBRARIAN, staff),
+    ).rejects.toThrow(/Role librarian not found/);
   });
 });

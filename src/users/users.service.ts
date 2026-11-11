@@ -62,8 +62,8 @@ export interface RegisteredMember {
   memberCode: string;
 }
 
-// Input for a staff account created by an admin. The password is plain here;
-// the policy check and hashing happen in createLibrarian().
+// Input for a staff account created by a manager or admin. The password is
+// plain here; the policy check and hashing happen in createStaff().
 export interface NewStaffInput {
   email: string;
   username: string;
@@ -238,8 +238,12 @@ export class UsersService {
     };
   }
 
-  // Admin-only (the route has @Roles(ADMIN)). A librarian has no member row.
-  async createLibrarian(input: NewStaffInput): Promise<StaffAccountResponse> {
+  // Staff accounts have no member row. Who may create which role is decided by
+  // the routes: librarians by managers and admins, managers by admins only.
+  async createStaff(
+    role: RoleName.LIBRARIAN | RoleName.MANAGER,
+    input: NewStaffInput,
+  ): Promise<StaffAccountResponse> {
     const problems = checkPasswordPolicy(input.password, {
       email: input.email,
       username: input.username,
@@ -250,7 +254,7 @@ export class UsersService {
     const passwordHash = await this.passwordService.hash(input.password);
     try {
       const id = await this.usersRepository.manager.transaction((manager) =>
-        this.insertUser(manager, RoleName.LIBRARIAN, {
+        this.insertUser(manager, role, {
           email: input.email,
           username: input.username,
           passwordHash,
@@ -266,7 +270,7 @@ export class UsersService {
         firstName: input.firstName,
         lastName: input.lastName,
         phone: input.phone ?? null,
-        role: RoleName.LIBRARIAN,
+        role,
         status: UserStatus.ACTIVE,
       };
     } catch (error) {

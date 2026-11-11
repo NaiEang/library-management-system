@@ -28,7 +28,11 @@ const member: LoginCandidate = {
   membershipStatus: 'pending_deposit',
 };
 
-async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
+async function setup(
+  candidate: LoginCandidate | null,
+  passwordMatches = true,
+  domains: string[] = [],
+) {
   const transactionManager = { id: 'tx' };
   const usersService = {
     findForLogin: vi.fn(() => Promise.resolve(candidate)),
@@ -86,7 +90,7 @@ async function setup(candidate: LoginCandidate | null, passwordMatches = true) {
     refreshTokens as unknown as RefreshTokenService,
     jwtService as unknown as JwtService,
     audit as unknown as AuthAuditService,
-    { jwtAccessTtlSeconds: 900 } as AuthConfig,
+    { jwtAccessTtlSeconds: 900, memberEmailDomains: domains } as AuthConfig,
   );
   await service.onModuleInit();
   return {
@@ -443,5 +447,54 @@ describe('AuthService.logout', () => {
     const { service, refreshTokens } = await setup(null);
     await service.logout('b'.repeat(43));
     expect(refreshTokens.revokeFamilyOf).toHaveBeenCalledWith('b'.repeat(43));
+  });
+});
+
+describe('AuthService.register: school email domains', () => {
+  const dto = {
+    email: 'new.member@itc.edu.kh',
+    username: 'newmember',
+    password: 'a long and unusual passphrase',
+  };
+
+  it('accepts an email at an allowed domain', async () => {
+    const { service, usersService } = await setup(null, true, ['itc.edu.kh']);
+    await expect(service.register(dto)).resolves.toMatchObject({
+      role: 'member',
+    });
+    expect(usersService.registerMember).toHaveBeenCalled();
+  });
+
+  it.each([
+    'new.member@gmail.com',
+    'new.member@itc.edu.kh.evil.com',
+    'new.member@fake-itc.edu.kh',
+  ])('rejects %s with 400, before hashing or saving', async (email) => {
+    const { service, usersService, passwordService } = await setup(null, true, [
+      'itc.edu.kh',
+    ]);
+    passwordService.hash.mockClear();
+    await expect(service.register({ ...dto, email })).rejects.toThrow(
+      'Please sign up with your school email (@itc.edu.kh)',
+    );
+    expect(passwordService.hash).not.toHaveBeenCalled();
+    expect(usersService.registerMember).not.toHaveBeenCalled();
+  });
+
+  it('accepts any of several allowed domains', async () => {
+    const { service } = await setup(null, true, [
+      'itc.edu.kh',
+      'student.itc.edu.kh',
+    ]);
+    await expect(
+      service.register({ ...dto, email: 'a.b@student.itc.edu.kh' }),
+    ).resolves.toBeDefined();
+  });
+
+  it('with no domains configured, any email is accepted', async () => {
+    const { service } = await setup(null, true, []);
+    await expect(
+      service.register({ ...dto, email: 'new.member@gmail.com' }),
+    ).resolves.toBeDefined();
   });
 });

@@ -57,6 +57,7 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
   it.each([
     ['/auth/me', 'get'],
     ['/users/librarians', 'post'],
+    ['/users/managers', 'post'],
     ['/users/members', 'get'],
     ['/users/{id}/verify-deposit', 'patch'],
     ['/users/{id}/status', 'patch'],
@@ -76,7 +77,7 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
     ],
     [
       '/users/librarians',
-      'CreateLibrarianDto',
+      'CreateStaffDto',
       ['email', 'username', 'password', 'firstName', 'lastName'],
       ['email', 'username', 'password', 'firstName', 'lastName', 'phone'],
     ],
@@ -88,7 +89,7 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
   });
 
   it('never documents a client-controlled role, status, id or deposit field', () => {
-    const fields = ['LoginDto', 'RegisterDto', 'CreateLibrarianDto'].flatMap(
+    const fields = ['LoginDto', 'RegisterDto', 'CreateStaffDto'].flatMap(
       (name) => Object.keys(schema(name).properties),
     );
     expect(fields).not.toEqual(
@@ -113,6 +114,7 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
       '/auth/refresh',
       '/auth/register',
       '/users/librarians',
+      '/users/managers',
       '/users/members',
       '/users/{id}/reset-password',
       '/users/{id}/status',
@@ -158,5 +160,14 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
       expect(bodySchema(path)).toBe('#/components/schemas/RefreshTokenDto');
     }
     expect(schema('RefreshTokenDto').required).toEqual(['refreshToken']);
+  });
+
+  it('creating a manager uses the same body as creating a librarian', () => {
+    expect(bodySchema('/users/managers')).toBe(
+      '#/components/schemas/CreateStaffDto',
+    );
+    expect(bodySchema('/users/librarians')).toBe(
+      '#/components/schemas/CreateStaffDto',
+    );
   });
 });

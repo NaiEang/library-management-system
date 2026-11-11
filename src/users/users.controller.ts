@@ -19,7 +19,7 @@ import {
   MemberListPage,
   MembersService,
 } from '../members/members.service';
-import { CreateLibrarianDto } from './dto/create-librarian.dto';
+import { CreateStaffDto } from './dto/create-staff.dto';
 import { StaffAccountResponse, UsersService } from './users.service';
 
 @ApiTags('users')
@@ -31,13 +31,18 @@ export class UsersController {
     private readonly membersService: MembersService,
   ) {}
 
-  // Only an admin creates librarians; nobody can self-register as staff.
-  @Roles(RoleName.ADMIN)
+  // Managers and admins create librarians; nobody can self-register as staff.
+  @Roles(RoleName.MANAGER)
   @Post('librarians')
-  createLibrarian(
-    @Body() dto: CreateLibrarianDto,
-  ): Promise<StaffAccountResponse> {
-    return this.usersService.createLibrarian(dto);
+  createLibrarian(@Body() dto: CreateStaffDto): Promise<StaffAccountResponse> {
+    return this.usersService.createStaff(RoleName.LIBRARIAN, dto);
+  }
+
+  // Only admins create managers (a manager will later run one campus).
+  @Roles(RoleName.ADMIN)
+  @Post('managers')
+  createManager(@Body() dto: CreateStaffDto): Promise<StaffAccountResponse> {
+    return this.usersService.createStaff(RoleName.MANAGER, dto);
   }
 
   // The librarian's member list: paged, filterable by membership status,

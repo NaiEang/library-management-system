@@ -82,6 +82,7 @@ function build(passwordHash: string) {
     ['admin', 'Full access, including observability'],
     ['librarian', 'Runs circulation, payments and the catalog'],
     ['member', 'Borrows books'],
+    ['manager', 'Manages librarians and members (later: one campus)'],
   ].map(([name, description], i) => ({
     id: i + 1,
     name,
@@ -133,7 +134,11 @@ function build(passwordHash: string) {
     ),
     ip: `10.0.1.${10 + n}`,
   }));
-  const staff = [admin, ...librarians];
+  const manager: Staff = {
+    ...addUser(4, 'Campus', 'Manager', ago(450), 'manager1'),
+    ip: '10.0.0.6',
+  };
+  const staff = [admin, manager, ...librarians];
 
   const memberRows: Row[] = [];
   const members: Member[] = [];
@@ -706,7 +711,7 @@ async function main() {
     ),
   );
   console.log(
-    `Log in as admin@libraflow.local, librarian1..4@libraflow.local or member1..3@libraflow.local with the dev password (SEED_DEV_PASSWORD, default "${DEV_PASSWORD === 'libraflow-dev-password' ? DEV_PASSWORD : '<your SEED_DEV_PASSWORD>'}").`,
+    `Log in as admin@libraflow.local, manager1@libraflow.local, librarian1..4@libraflow.local or member1..3@libraflow.local with the dev password (SEED_DEV_PASSWORD, default "${DEV_PASSWORD === 'libraflow-dev-password' ? DEV_PASSWORD : '<your SEED_DEV_PASSWORD>'}").`,
   );
   await dataSource.destroy();
 }

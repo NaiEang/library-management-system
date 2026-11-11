@@ -21,6 +21,9 @@ export interface AuthConfig {
   depositAmount: number;
   // IANA zone that defines the library's "today" (membership expiry).
   libraryTimeZone: string;
+  // Email domains allowed for member self-registration (e.g. itc.edu.kh). Empty
+  // means any domain. Staff accounts are never restricted.
+  memberEmailDomains: string[];
 }
 
 const DURATION = /^\d+[smhd]$/;
@@ -66,6 +69,21 @@ class AuthEnv {
   @IsOptional()
   @IsString()
   LIBRARY_TIME_ZONE = 'Asia/Phnom_Penh';
+
+  // Comma-separated, e.g. "itc.edu.kh" or "itc.edu.kh,student.itc.edu.kh"
+  @IsOptional()
+  @IsString()
+  MEMBER_EMAIL_DOMAINS = '';
+}
+
+// A plain domain name: labels of letters, digits and hyphens, at least one dot.
+const DOMAIN = /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/;
+
+export function parseEmailDomains(value: string): string[] {
+  return value
+    .split(',')
+    .map((domain) => domain.trim().toLowerCase())
+    .filter((domain) => domain !== '');
 }
 
 export function durationToSeconds(value: string): number {
@@ -109,6 +127,12 @@ export function validateAuthEnv(env: Record<string, unknown>): AuthConfig {
       'LIBRARY_TIME_ZONE must be an IANA time zone such as Asia/Phnom_Penh',
     );
   }
+  const domains = parseEmailDomains(parsed.MEMBER_EMAIL_DOMAINS ?? '');
+  if (domains.some((domain) => !DOMAIN.test(domain))) {
+    problems.push(
+      'MEMBER_EMAIL_DOMAINS must be domains separated by commas, such as itc.edu.kh (no @)',
+    );
+  }
   if (problems.length > 0) {
     throw new Error(`Invalid auth configuration:\n- ${problems.join('\n- ')}`);
   }
@@ -126,6 +150,7 @@ export function validateAuthEnv(env: Record<string, unknown>): AuthConfig {
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     depositAmount: parsed.DEPOSIT_AMOUNT,
     libraryTimeZone: parsed.LIBRARY_TIME_ZONE,
+    memberEmailDomains: domains,
   };
 }
 
