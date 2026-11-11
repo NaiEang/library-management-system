@@ -46,9 +46,9 @@ describe('Auth & Users schema contract', () => {
     });
   });
 
-  it('roles: only ADMIN, LIBRARIAN and MEMBER', () => {
+  it('roles: only admin, manager, librarian and member', () => {
     expect(checks(Role)).toContain(
-      `"name" IN ('admin', 'librarian', 'member')`,
+      `"name" IN ('admin', 'manager', 'librarian', 'member')`,
     );
   });
 

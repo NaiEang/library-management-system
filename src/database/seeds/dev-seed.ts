@@ -7,6 +7,7 @@ import { PasswordService } from '../../auth/password/password.service';
 import { describeActivity } from '../../dashboard/describe-activity';
 import { insertRows, syncSequence, type Row } from '../insert-rows';
 import { localDataSource, resetSchema } from '../local-db';
+import { NotificationType } from '../../notifications/enums/notification-type.enum';
 
 faker.seed(2026);
 
@@ -50,7 +51,7 @@ type Activity = {
 type Notice = {
   at: number;
   userId: number;
-  type: string;
+  type: NotificationType;
   title: string;
   message: string;
 };
@@ -82,6 +83,7 @@ function build(passwordHash: string) {
     ['admin', 'Full access, including observability'],
     ['librarian', 'Runs circulation, payments and the catalog'],
     ['member', 'Borrows books'],
+    ['manager', 'Manages librarians and members (later: one campus)'],
   ].map(([name, description], i) => ({
     id: i + 1,
     name,
@@ -133,7 +135,11 @@ function build(passwordHash: string) {
     ),
     ip: `10.0.1.${10 + n}`,
   }));
-  const staff = [admin, ...librarians];
+  const manager: Staff = {
+    ...addUser(4, 'Campus', 'Manager', ago(450), 'manager1'),
+    ip: '10.0.0.6',
+  };
+  const staff = [admin, manager, ...librarians];
 
   const memberRows: Row[] = [];
   const members: Member[] = [];
@@ -337,7 +343,7 @@ function build(passwordHash: string) {
     notices.push({
       at: paidMs,
       userId: member.userId,
-      type: 'payment_received',
+      type: NotificationType.PAYMENT_RECEIVED,
       title: type === 'deposit' ? 'Deposit received' : 'Fine paid',
       message: `We received your ${type} of $${money(amount)} via ${method === 'cash' ? 'cash' : 'KHQR'}.`,
     });
@@ -426,7 +432,7 @@ function build(passwordHash: string) {
         notices.push({
           at: rejectedMs,
           userId: member.userId,
-          type: 'loan_rejected',
+          type: NotificationType.LOAN_REJECTED,
           title: 'Loan request rejected',
           message: `Your request ${loanCode} was rejected. Please ask at the desk.`,
         });
@@ -445,7 +451,7 @@ function build(passwordHash: string) {
         notices.push({
           at: approvedMs,
           userId: member.userId,
-          type: 'loan_approved',
+          type: NotificationType.LOAN_APPROVED,
           title: 'Loan approved',
           message: `${loanCode} is ready. Due back in ${LOAN_DAYS} days.`,
         });
@@ -518,7 +524,7 @@ function build(passwordHash: string) {
             notices.push({
               at: dueMs - 2 * DAY,
               userId: member.userId,
-              type: 'due_soon',
+              type: NotificationType.LOAN_DUE_SOON,
               title: 'Due in 2 days',
               message: `${copy.code} from ${loanCode} is due in 2 days.`,
             });
@@ -528,7 +534,7 @@ function build(passwordHash: string) {
           notices.push({
             at: dueMs + DAY,
             userId: member.userId,
-            type: 'overdue',
+            type: NotificationType.LOAN_OVERDUE,
             title: 'Book overdue',
             message: `${copy.code} is overdue. Fines are $${money(FINE_PER_DAY)} a day.`,
           });
@@ -706,7 +712,7 @@ async function main() {
     ),
   );
   console.log(
-    `Log in as admin@libraflow.local, librarian1..4@libraflow.local or member1..3@libraflow.local with the dev password (SEED_DEV_PASSWORD, default "${DEV_PASSWORD === 'libraflow-dev-password' ? DEV_PASSWORD : '<your SEED_DEV_PASSWORD>'}").`,
+    `Log in as admin@libraflow.local, manager1@libraflow.local, librarian1..4@libraflow.local or member1..3@libraflow.local with the dev password (SEED_DEV_PASSWORD, default "${DEV_PASSWORD === 'libraflow-dev-password' ? DEV_PASSWORD : '<your SEED_DEV_PASSWORD>'}").`,
   );
   await dataSource.destroy();
 }

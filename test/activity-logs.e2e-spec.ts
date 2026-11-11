@@ -18,7 +18,7 @@ class ProbeController {
   // A plain write with no @LogActivity, for checking who gets logged
   @Post()
   create() {
-    return { id: '1' };
+    return {};
   }
 
   @Patch(':id/approve')
@@ -81,7 +81,7 @@ describe('Activity logs (e2e)', () => {
   describe('ActivityLogInterceptor', () => {
     it('records a librarian write with the action, entity, user and IP', async () => {
       await request(server())
-        .post('/books')
+        .post('/probe-loans')
         .set(as(USERS.librarian))
         .send({})
         .expect(201);
@@ -91,8 +91,8 @@ describe('Activity logs (e2e)', () => {
         .expect(200);
       expect(res.body.data[0]).toMatchObject({
         action: 'CREATE',
-        entityType: 'Book',
-        description: 'librarian created Book',
+        entityType: 'ProbeLoan',
+        description: 'librarian created ProbeLoan',
         ipAddress: expect.any(String),
         user: {
           id: String(USERS.librarian),
@@ -139,7 +139,7 @@ describe('Activity logs (e2e)', () => {
         .set(as(USERS.member))
         .expect(201);
       // Anonymous callers can't write at all now (global JWT guard)
-      await request(server()).post('/books').send({}).expect(401);
+      await request(server()).post('/probe-loans').send({}).expect(401);
       await request(server())
         .post('/probe-loans/login')
         .set(as(USERS.admin))

@@ -20,6 +20,8 @@ const base = {
     membershipDate: '2026-11-01',
     expiryDate: null,
     depositAmount: '5.00',
+    depositVerifiedAt: null,
+    blockedUntil: new Date('2027-01-01T00:00:00Z'),
   },
 };
 
@@ -29,7 +31,7 @@ describe('toUserProfile', () => {
     expect(JSON.stringify(profile)).not.toMatch(/passwordHash|argon2|roleId/);
   });
 
-  it('returns the member part as the entity is today, with the decimal as a number', () => {
+  it('returns the member part with the decimal as a number, and never blocked_until', () => {
     expect(toUserProfile(base as unknown as User).member).toEqual({
       id: '30',
       memberCode: 'LF-2026-ABC123',
@@ -37,6 +39,7 @@ describe('toUserProfile', () => {
       membershipDate: '2026-11-01',
       expiryDate: null,
       depositAmount: 5,
+      depositVerifiedAt: null,
     });
   });
 

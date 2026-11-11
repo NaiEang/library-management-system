@@ -7,10 +7,10 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { isRoleName, RoleName, UserStatus } from '../../common/constants';
 import { UsersService } from '../../users/users.service';
 import { authConfig } from '../config/auth.config';
 import { AuthUser, JwtPayload } from '../types/auth-user';
+import { toAuthUser } from '../types/to-auth-user';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -47,31 +47,18 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException();
     }
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
+    const check = toAuthUser(user);
+    if (!check.ok) {
+      if (
+        check.reason === 'unknown_role' ||
+        check.reason === 'member_row_missing'
+      ) {
+        this.logger.warn(
+          `User ${user?.id} has bad data (${check.reason}); access denied`,
+        );
+      }
       throw new UnauthorizedException();
     }
-    if (!isRoleName(user.roleName)) {
-      this.logger.warn(`User ${user.id} has an unknown role; access denied`);
-      throw new UnauthorizedException();
-    }
-
-    const role = user.roleName;
-    if (role !== RoleName.MEMBER) {
-      return { id: user.id, username: user.username, role };
-    }
-    // Register creates the user and member rows together, so a MEMBER without
-    // a member row is corrupt data: deny rather than hand teammates no memberId.
-    if (!user.memberId) {
-      this.logger.warn(
-        `Member user ${user.id} has no member row; access denied`,
-      );
-      throw new UnauthorizedException();
-    }
-    return {
-      id: user.id,
-      username: user.username,
-      role,
-      memberId: user.memberId,
-    };
+    return check.user;
   }
 }

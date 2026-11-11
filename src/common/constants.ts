@@ -1,6 +1,8 @@
-// Matches roles.name (lowercase, as in the database)
+// Matches roles.name (lowercase, as in the database). Staff form a ladder:
+// admin > manager > librarian. A manager is meant to run one campus later.
 export enum RoleName {
   ADMIN = 'admin',
+  MANAGER = 'manager',
   LIBRARIAN = 'librarian',
   MEMBER = 'member',
 }

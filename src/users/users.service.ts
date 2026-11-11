@@ -62,8 +62,8 @@ export interface RegisteredMember {
   memberCode: string;
 }
 
-// Input for a staff account created by an admin. The password is plain here;
-// the policy check and hashing happen in createLibrarian().
+// Input for a staff account created by a manager or admin. The password is
+// plain here; the policy check and hashing happen in createStaff().
 export interface NewStaffInput {
   email: string;
   username: string;
@@ -151,6 +151,34 @@ export class UsersService {
     };
   }
 
+  // Runs work in one database transaction (e.g. a password change plus ending
+  // the user's sessions).
+  inTransaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
+    return this.usersRepository.manager.transaction(work);
+  }
+
+  // For password checks on an already-known user. The only other place that
+  // selects the hash is findForLogin.
+  async findPasswordHash(id: string): Promise<string | null> {
+    const user = await this.usersRepository.findOne({
+      where: { id },
+      select: { id: true, passwordHash: true },
+    });
+    return user?.passwordHash ?? null;
+  }
+
+  async updatePasswordHash(
+    id: string,
+    passwordHash: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await (manager ?? this.usersRepository.manager).update(
+      User,
+      { id },
+      { passwordHash },
+    );
+  }
+
   async recordLogin(id: string): Promise<void> {
     await this.usersRepository.update({ id }, { lastLoginAt: new Date() });
   }
@@ -210,8 +238,12 @@ export class UsersService {
     };
   }
 
-  // Admin-only (the route has @Roles(ADMIN)). A librarian has no member row.
-  async createLibrarian(input: NewStaffInput): Promise<StaffAccountResponse> {
+  // Staff accounts have no member row. Who may create which role is decided by
+  // the routes: librarians by managers and admins, managers by admins only.
+  async createStaff(
+    role: RoleName.LIBRARIAN | RoleName.MANAGER,
+    input: NewStaffInput,
+  ): Promise<StaffAccountResponse> {
     const problems = checkPasswordPolicy(input.password, {
       email: input.email,
       username: input.username,
@@ -222,7 +254,7 @@ export class UsersService {
     const passwordHash = await this.passwordService.hash(input.password);
     try {
       const id = await this.usersRepository.manager.transaction((manager) =>
-        this.insertUser(manager, RoleName.LIBRARIAN, {
+        this.insertUser(manager, role, {
           email: input.email,
           username: input.username,
           passwordHash,
@@ -238,7 +270,7 @@ export class UsersService {
         firstName: input.firstName,
         lastName: input.lastName,
         phone: input.phone ?? null,
-        role: RoleName.LIBRARIAN,
+        role,
         status: UserStatus.ACTIVE,
       };
     } catch (error) {

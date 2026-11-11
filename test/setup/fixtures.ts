@@ -79,7 +79,8 @@ export async function seedFixtures(dataSource: DataSource) {
   });
 
   const tables: Record<string, Row[]> = {
-    roles: ['admin', 'librarian', 'member'].map((name, i) => ({
+    // ids 1-3 as before; manager (added later) is 4
+    roles: ['admin', 'librarian', 'member', 'manager'].map((name, i) => ({
       id: i + 1,
       name,
       description: null,

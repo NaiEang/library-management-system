@@ -23,7 +23,12 @@ export function hashedPassword(): Promise<string> {
   return passwordHash;
 }
 
-const ROLE_IDS: Record<string, number> = { admin: 1, librarian: 2, member: 3 };
+const ROLE_IDS: Record<string, number> = {
+  admin: 1,
+  librarian: 2,
+  member: 3,
+  manager: 4,
+};
 
 export interface FakeUserInput {
   id: string;
@@ -65,6 +70,8 @@ export async function makeUser(input: FakeUserInput): Promise<User> {
           expiryDate: null,
           membershipStatus: input.membershipStatus ?? 'pending_deposit',
           depositAmount: '0.00',
+          depositVerifiedAt: null,
+          blockedUntil: null,
         }
       : null,
   } as unknown as User;
@@ -82,6 +89,7 @@ export const ROLES = [
   { id: 1, name: 'admin' },
   { id: 2, name: 'librarian' },
   { id: 3, name: 'member' },
+  { id: 4, name: 'manager' },
 ] as unknown as Role[];
 
 // The real AuthModule and UsersModule with in-memory repositories: no database.

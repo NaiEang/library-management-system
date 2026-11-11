@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import { RoleName } from '../../common/constants';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { roleSatisfies } from '../role-ladder';
 import { AuthUser } from '../types/auth-user';
 
 // Runs after JwtAuthGuard. The role it checks comes from the database
@@ -37,7 +38,9 @@ export class RolesGuard implements CanActivate {
     if (!user) {
       throw new UnauthorizedException();
     }
-    if (requiredRoles && !requiredRoles.includes(user.role)) {
+    // Staff roles form a ladder (see role-ladder.ts): admins and managers pass
+    // librarian routes, admins pass manager routes.
+    if (requiredRoles && !roleSatisfies(user.role, requiredRoles)) {
       throw new ForbiddenException();
     }
     return true;

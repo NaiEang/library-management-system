@@ -22,6 +22,16 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # BullMQ (overdue reminders) needs Redis when the E2E suite boots the app
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,4 +44,6 @@ jobs:
       - run: npm run test:e2e
         env:
           TEST_DATABASE_URL: postgres://libraflow:libraflow@localhost:5432/libraflow_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
 

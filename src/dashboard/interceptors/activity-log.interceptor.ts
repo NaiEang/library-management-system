@@ -15,7 +15,11 @@ import {
   type LogActivityOptions,
 } from '../decorators/log-activity.decorator';
 
-const STAFF_ROLES = new Set<RoleName>([RoleName.ADMIN, RoleName.LIBRARIAN]);
+const STAFF_ROLES = new Set<RoleName>([
+  RoleName.ADMIN,
+  RoleName.MANAGER,
+  RoleName.LIBRARIAN,
+]);
 const ACTION_BY_METHOD: Record<string, string> = {
   POST: 'CREATE',
   PUT: 'UPDATE',

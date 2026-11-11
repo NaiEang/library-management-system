@@ -45,10 +45,12 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
     const req = request(app.getHttpServer()).get('/auth/me');
     return token ? req.set('Authorization', `Bearer ${token}`) : req;
   };
-  const cookieOf = (res: request.Response) =>
-    String(res.headers['set-cookie']?.[0] ?? '');
   const rawRefreshToken = (res: request.Response) =>
-    /refresh_token=([^;]+)/.exec(cookieOf(res))?.[1] ?? '';
+    String(res.body.refreshToken ?? '');
+  const refreshLifetimeSeconds = (res: request.Response) =>
+    Math.round(
+      (Date.parse(res.body.refreshTokenExpiresAt) - Date.now()) / 1000,
+    );
 
   // A fresh app per test: the throttler counts in memory, so tests stay independent.
   beforeEach(async () => {
@@ -74,6 +76,8 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
           accessToken: expect.any(String),
           tokenType: 'Bearer',
           expiresIn: 900,
+          refreshToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+          refreshTokenExpiresAt: expect.any(String),
           user: { id, email, username: `user${id}`, role, membershipStatus },
         });
       },
@@ -111,21 +115,17 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
     });
   });
 
-  describe('refresh cookie', () => {
-    it('is HttpOnly, Secure, SameSite=Strict, Path=/auth, Max-Age = idle TTL for members', async () => {
+  describe('refresh token (in the body: backend-only, no cookie)', () => {
+    it('members: 43 characters, idle expiry in 7 days, and no cookie', async () => {
       const res = await login('good.student@demo.com').expect(200);
-      const cookie = cookieOf(res);
-      expect(cookie).toMatch(/^refresh_token=[A-Za-z0-9_-]{43};/);
-      expect(cookie).toMatch(/; HttpOnly/);
-      expect(cookie).toMatch(/; Secure/);
-      expect(cookie).toMatch(/; SameSite=Strict/);
-      expect(cookie).toMatch(/; Path=\/auth/);
-      expect(cookie).toMatch(new RegExp(`; Max-Age=${7 * DAY}`));
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(rawRefreshToken(res)).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(Math.abs(refreshLifetimeSeconds(res) - 7 * DAY)).toBeLessThan(5);
     });
 
-    it('is capped by the 12h absolute limit for staff', async () => {
+    it('staff: capped by the 12h absolute limit', async () => {
       const res = await login('librarian@libraflow.test').expect(200);
-      expect(cookieOf(res)).toMatch(new RegExp(`; Max-Age=${12 * HOUR}`));
+      expect(Math.abs(refreshLifetimeSeconds(res) - 12 * HOUR)).toBeLessThan(5);
     });
 
     it('stores only the SHA-256 hash of the token, in a new family', async () => {
@@ -266,6 +266,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
           membershipDate: '2026-11-01',
           expiryDate: null,
           depositAmount: 0,
+          depositVerifiedAt: null,
         },
       });
     });
@@ -287,7 +288,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
     });
   });
 
-  it('no response ever contains a password hash, a token hash or the raw refresh token', async () => {
+  it('no response contains a password or token hash, and only login returns the refresh token', async () => {
     const success = await login('good.student@demo.com').expect(200);
     const profile = await me(success.body.accessToken).expect(200);
     const failure = await login('good.student@demo.com', 'wrong guess').expect(
@@ -299,7 +300,8 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
       expect(text).not.toMatch(
         /passwordHash|password_hash|\$argon2|tokenHash|token_hash/,
       );
-      expect(text).not.toContain(raw);
     }
+    expect(JSON.stringify(profile.body)).not.toContain(raw);
+    expect(JSON.stringify(failure.body)).not.toContain(raw);
   });
 });
