@@ -22,12 +22,12 @@ describe('POST /users/librarians (e2e)', () => {
 
   const create = (body: object, token?: string) => {
     const req = request(app.getHttpServer())
-      .post('/users/librarians')
+      .post('/api/v1/users/librarians')
       .send(body);
     return token ? req.set('Authorization', `Bearer ${token}`) : req;
   };
   const login = (email: string, password = PASSWORD) =>
-    request(app.getHttpServer()).post('/auth/login').send({ email, password });
+    request(app.getHttpServer()).post('/api/v1/auth/login').send({ email, password });
 
   beforeEach(async () => {
     const seeded = await Promise.all([

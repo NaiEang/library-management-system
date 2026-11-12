@@ -56,13 +56,13 @@ describe('Auth guard contract (e2e)', () => {
 
   describe('decorators', () => {
     it('@Public route: 200 without a token', () =>
-      get('/contract/public').expect(200, { ok: true }));
+      get('/api/v1/contract/public').expect(200, { ok: true }));
 
     it('route without decorators: 401 without a token', () =>
-      get('/contract/me').expect(401));
+      get('/api/v1/contract/me').expect(401));
 
     it('@CurrentUser returns exactly { id, username, role, memberId }', () =>
-      get('/contract/me', tokenFor('3')).expect(200, {
+      get('/api/v1/contract/me', tokenFor('3')).expect(200, {
         id: '3',
         username: 'user3',
         role: 'member',
@@ -70,28 +70,28 @@ describe('Auth guard contract (e2e)', () => {
       }));
 
     it('@CurrentUser omits memberId for staff', () =>
-      get('/contract/me', tokenFor('2', 'librarian')).expect(200, {
+      get('/api/v1/contract/me', tokenFor('2', 'librarian')).expect(200, {
         id: '2',
         username: 'user2',
         role: 'librarian',
       }));
 
     it.each([
-      ['/contract/admin', '1', 200],
-      ['/contract/admin', '2', 403],
-      ['/contract/admin', '3', 403],
-      ['/contract/staff', '1', 200],
-      ['/contract/staff', '2', 200],
-      ['/contract/staff', '3', 403],
+      ['/api/v1/contract/admin', '1', 200],
+      ['/api/v1/contract/admin', '2', 403],
+      ['/api/v1/contract/admin', '3', 403],
+      ['/api/v1/contract/staff', '1', 200],
+      ['/api/v1/contract/staff', '2', 200],
+      ['/api/v1/contract/staff', '3', 403],
     ])('%s as user %s → %i', async (path, sub, status) => {
       await get(path, tokenFor(sub)).expect(status);
     });
 
     it('role comes from the database: a MEMBER token claiming ADMIN gets 403', () =>
-      get('/contract/admin', tokenFor('3', 'admin')).expect(403));
+      get('/api/v1/contract/admin', tokenFor('3', 'admin')).expect(403));
 
     it('@Public plus @Roles fails closed, even with an admin token', () =>
-      get('/contract/public-with-roles', tokenFor('1')).expect(401));
+      get('/api/v1/contract/public-with-roles', tokenFor('1')).expect(401));
   });
 
   describe('access token checks', () => {
@@ -105,7 +105,7 @@ describe('Auth guard contract (e2e)', () => {
 
     it('accepts a hand-built HS256 token with the right secret (sanity check for the cases below)', () =>
       get(
-        '/contract/me',
+        '/api/v1/contract/me',
         signToken(
           { sub: '3', role: 'member', iat: now(), exp: now() + 60 },
           SECRET,
@@ -122,14 +122,14 @@ describe('Auth guard contract (e2e)', () => {
           exp: now() + 60,
         }),
       ).toString('base64url');
-      return get('/contract/me', `${header}.${forged}.${signature}`).expect(
+      return get('/api/v1/contract/me', `${header}.${forged}.${signature}`).expect(
         401,
       );
     });
 
     it('expired token → 401', () =>
       get(
-        '/contract/me',
+        '/api/v1/contract/me',
         signToken(
           { sub: '3', role: 'member', iat: now() - 1000, exp: now() - 60 },
           SECRET,
@@ -138,13 +138,13 @@ describe('Auth guard contract (e2e)', () => {
 
     it('alg "none" → 401', () =>
       get(
-        '/contract/me',
+        '/api/v1/contract/me',
         unsignedToken({ sub: '1', role: 'admin', iat: now(), exp: now() + 60 }),
       ).expect(401));
 
     it('HS512 token signed with the right secret → 401 (algorithm pinned)', () =>
       get(
-        '/contract/me',
+        '/api/v1/contract/me',
         signToken(
           { sub: '3', role: 'member', iat: now(), exp: now() + 60 },
           SECRET,
@@ -154,7 +154,7 @@ describe('Auth guard contract (e2e)', () => {
 
     it('token signed with a different secret → 401', () =>
       get(
-        '/contract/me',
+        '/api/v1/contract/me',
         signToken(
           { sub: '3', role: 'member', iat: now(), exp: now() + 60 },
           randomBytes(48).toString('base64url'),
@@ -163,7 +163,7 @@ describe('Auth guard contract (e2e)', () => {
 
     it('token without sub → 401', () =>
       get(
-        '/contract/me',
+        '/api/v1/contract/me',
         signToken({ role: 'admin', iat: now(), exp: now() + 60 }, SECRET),
       ).expect(401));
 
@@ -173,7 +173,7 @@ describe('Auth guard contract (e2e)', () => {
       `Basic ${Buffer.from('a:b').toString('base64')}`,
     ])('malformed Authorization header "%s" → 401', async (header) => {
       await request(app.getHttpServer())
-        .get('/contract/me')
+        .get('/api/v1/contract/me')
         .set('Authorization', header)
         .expect(401);
     });
@@ -181,23 +181,23 @@ describe('Auth guard contract (e2e)', () => {
 
   describe('user state is checked on every request', () => {
     it('disabled user with a still-valid token → 401', () =>
-      get('/contract/me', tokenFor('4')).expect(401));
+      get('/api/v1/contract/me', tokenFor('4')).expect(401));
 
     it('deleted user with a still-valid token → 401', () =>
-      get('/contract/me', tokenFor('99')).expect(401));
+      get('/api/v1/contract/me', tokenFor('99')).expect(401));
 
     it('user with an unknown role → 401', () =>
-      get('/contract/me', tokenFor('5')).expect(401));
+      get('/api/v1/contract/me', tokenFor('5')).expect(401));
 
     it('MEMBER without a member row → 401 (corrupt data fails closed)', () =>
-      get('/contract/me', tokenFor('7')).expect(401));
+      get('/api/v1/contract/me', tokenFor('7')).expect(401));
 
     it('database error during lookup → 401 (deny, never allow)', () =>
-      get('/contract/me', tokenFor('6')).expect(401));
+      get('/api/v1/contract/me', tokenFor('6')).expect(401));
   });
 
   it('401 responses are generic and leak nothing', async () => {
-    const res = await get('/contract/me', tokenFor('6'));
+    const res = await get('/api/v1/contract/me', tokenFor('6'));
     expect(res.body).toEqual({ statusCode: 401, message: 'Unauthorized' });
   });
 });

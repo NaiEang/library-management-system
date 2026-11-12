@@ -17,9 +17,10 @@ describe('Security headers (e2e)', () => {
   });
 
   it.each([
-    ['a normal response', '/', 200],
-    ['a 401', '/auth/me', 401],
-    ['a 404', '/no-such-route', 404],
+    ['a normal response', '/api/v1', 200],
+    ['a 401', '/api/v1/auth/me', 401],
+    ['a 404', '/api/v1/no-such-route', 404],
+    ['an operational endpoint outside /api/v1', '/health', 200],
   ])('%s carries them', async (_label, path, status) => {
     const res = await request(app.getHttpServer()).get(path).expect(status);
     expect(res.headers['x-content-type-options']).toBe('nosniff');

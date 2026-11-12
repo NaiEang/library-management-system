@@ -86,13 +86,13 @@ describe('Member list and deposit verification (e2e)', () => {
       ['librarian', USERS.librarian, 200],
       ['admin', USERS.admin, 200],
     ])('%s → %i', async (_label, userId, status) => {
-      const req = request(server()).get('/users/members');
+      const req = request(server()).get('/api/v1/users/members');
       await (userId ? req.set(as(userId)) : req).expect(status);
     });
 
     it('returns a page with the documented fields, and never blocked_until', async () => {
       const res = await request(server())
-        .get('/users/members?search=verify.me')
+        .get('/api/v1/users/members?search=verify.me')
         .set(as(USERS.librarian))
         .expect(200);
       expect(res.body.meta).toEqual({ page: 1, limit: 20, total: 1 });
@@ -118,7 +118,7 @@ describe('Member list and deposit verification (e2e)', () => {
 
     it('filters by membership status', async () => {
       const res = await request(server())
-        .get('/users/members?membershipStatus=pending_deposit&limit=100')
+        .get('/api/v1/users/members?membershipStatus=pending_deposit&limit=100')
         .set(as(USERS.librarian))
         .expect(200);
       const rows = res.body.data as { membershipStatus: string }[];
@@ -130,7 +130,7 @@ describe('Member list and deposit verification (e2e)', () => {
 
     it('shows the librarian whether the email is verified, and filters by it', async () => {
       const unverified = await request(server())
-        .get('/users/members?emailVerified=false&limit=100')
+        .get('/api/v1/users/members?emailVerified=false&limit=100')
         .set(as(USERS.librarian))
         .expect(200);
       const rows = unverified.body.data as {
@@ -141,7 +141,7 @@ describe('Member list and deposit verification (e2e)', () => {
       expect(rows.every((row) => row.emailVerified === false)).toBe(true);
 
       const verified = await request(server())
-        .get('/users/members?emailVerified=true&limit=100')
+        .get('/api/v1/users/members?emailVerified=true&limit=100')
         .set(as(USERS.librarian))
         .expect(200);
       const verifiedIds = (verified.body.data as typeof rows).map(
@@ -153,7 +153,7 @@ describe('Member list and deposit verification (e2e)', () => {
 
     it('pages: limit 2 gives 2 rows and the full total', async () => {
       const res = await request(server())
-        .get('/users/members?limit=2&page=1')
+        .get('/api/v1/users/members?limit=2&page=1')
         .set(as(USERS.librarian))
         .expect(200);
       expect(res.body.data).toHaveLength(2);
@@ -162,14 +162,14 @@ describe('Member list and deposit verification (e2e)', () => {
 
     it('treats % and _ in the search as plain text', async () => {
       const percent = await request(server())
-        .get('/users/members?search=50%25')
+        .get('/api/v1/users/members?search=50%25')
         .set(as(USERS.librarian))
         .expect(200);
       expect(
         percent.body.data.map((r: { memberCode: string }) => r.memberCode),
       ).toEqual(['LF-50%-X']);
       const underscore = await request(server())
-        .get('/users/members?search=LF_5')
+        .get('/api/v1/users/members?search=LF_5')
         .set(as(USERS.librarian))
         .expect(200);
       expect(underscore.body.meta.total).toBe(0);
@@ -184,7 +184,7 @@ describe('Member list and deposit verification (e2e)', () => {
       `search=${'x'.repeat(101)}`,
     ])('rejects %s with 400', async (query) => {
       await request(server())
-        .get(`/users/members?${query}`)
+        .get(`/api/v1/users/members?${query}`)
         .set(as(USERS.librarian))
         .expect(400);
     });
@@ -192,7 +192,7 @@ describe('Member list and deposit verification (e2e)', () => {
 
   describe('PATCH /users/:id/verify-deposit', () => {
     const verify = (id: number | string, staff?: number) => {
-      const req = request(server()).patch(`/users/${id}/verify-deposit`);
+      const req = request(server()).patch(`/api/v1/users/${id}/verify-deposit`);
       return staff ? req.set(as(staff)) : req;
     };
 
@@ -246,7 +246,7 @@ describe('Member list and deposit verification (e2e)', () => {
 
     it('the member now sees the active membership on /auth/me', async () => {
       const res = await request(server())
-        .get('/auth/me')
+        .get('/api/v1/auth/me')
         .set(as(MINE.verify))
         .expect(200);
       expect(res.body.member).toMatchObject({

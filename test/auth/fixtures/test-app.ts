@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { randomBytes } from 'node:crypto';
 import { App } from 'supertest/types';
+import { useApiPrefix } from '../../../src/app.setup';
 import { AuthModule } from '../../../src/auth/auth.module';
 import { EmailVerificationCode } from '../../../src/auth/entities/email-verification-code.entity';
 import { RefreshToken } from '../../../src/auth/entities/refresh-token.entity';
@@ -170,7 +171,8 @@ export async function createTestApp(
   const app = moduleRef.createNestApplication<INestApplication<App>>({
     logger: false,
   });
-  // Same global pipe as src/main.ts.
+  // Same route prefix and global pipe as src/main.ts.
+  useApiPrefix(app);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.init();
   return {

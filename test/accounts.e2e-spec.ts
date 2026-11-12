@@ -28,7 +28,7 @@ describe('Account status, password reset and password change (e2e)', () => {
   const today = new Date().toISOString().slice(0, 10);
 
   const login = (email: string, password: string) =>
-    request(server()).post('/auth/login').send({ email, password });
+    request(server()).post('/api/v1/auth/login').send({ email, password });
   const activeSessions = async (userId: number) =>
     (
       await db.query<{ n: number }[]>(
@@ -102,7 +102,7 @@ describe('Account status, password reset and password change (e2e)', () => {
       actor?: number,
     ) => {
       const req = request(server())
-        .patch(`/users/${id}/status`)
+        .patch(`/api/v1/users/${id}/status`)
         .send({ enabled });
       return actor ? req.set(as(actor)) : req;
     };
@@ -120,7 +120,7 @@ describe('Account status, password reset and password change (e2e)', () => {
       const session = await login('status.me@test.local', PASSWORD).expect(200);
       expect(await activeSessions(MINE.statusMe)).toBe(1);
       await request(server())
-        .get('/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${session.body.accessToken}`)
         .expect(200);
 
@@ -136,7 +136,7 @@ describe('Account status, password reset and password change (e2e)', () => {
 
       expect(await activeSessions(MINE.statusMe)).toBe(0);
       await request(server())
-        .get('/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${session.body.accessToken}`)
         .expect(401);
       await login('status.me@test.local', PASSWORD).expect(401);
@@ -182,7 +182,7 @@ describe('Account status, password reset and password change (e2e)', () => {
       ['enabled as a string', { enabled: 'false' }],
     ])('rejects a body with %s → 400', async (_label, body) => {
       await request(server())
-        .patch(`/users/${MINE.statusMe}/status`)
+        .patch(`/api/v1/users/${MINE.statusMe}/status`)
         .set(as(USERS.admin))
         .send(body)
         .expect(400);
@@ -196,7 +196,7 @@ describe('Account status, password reset and password change (e2e)', () => {
 
   describe('POST /users/:id/reset-password', () => {
     const reset = (id: number, actor?: number) => {
-      const req = request(server()).post(`/users/${id}/reset-password`);
+      const req = request(server()).post(`/api/v1/users/${id}/reset-password`);
       return actor ? req.set(as(actor)) : req;
     };
 
@@ -257,7 +257,7 @@ describe('Account status, password reset and password change (e2e)', () => {
 
   describe('PATCH /auth/password', () => {
     const change = (actor: number | undefined, body: object) => {
-      const req = request(server()).patch('/auth/password').send(body);
+      const req = request(server()).patch('/api/v1/auth/password').send(body);
       return actor ? req.set(as(actor)) : req;
     };
     const NEW = 'my fresh reading passphrase';

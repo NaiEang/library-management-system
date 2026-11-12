@@ -127,7 +127,7 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
 
   describe('the @GoldMember() guard on a test controller', () => {
     it('gold member → 200, and the route sees their member id', async () => {
-      const res = await get('/gold-test/rooms', MINE.gold).expect(200);
+      const res = await get('/api/v1/gold-test/rooms', MINE.gold).expect(200);
       expect(res.body).toEqual({ ok: true, memberId: String(MINE.gold) });
     });
 
@@ -139,74 +139,74 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
       ['the seeded member (never bought gold)', USERS.member],
       ['the seeded pending member', USERS.pendingMember],
     ])('%s → 403 "Gold membership required"', async (_label, userId) => {
-      const res = await get('/gold-test/rooms', userId).expect(403);
+      const res = await get('/api/v1/gold-test/rooms', userId).expect(403);
       expect(res.body.message).toBe('Gold membership required');
     });
 
     it('staff → 403, on the gold route and combined with @Roles', async () => {
       for (const staff of [USERS.librarian, USERS.admin]) {
-        const res = await get('/gold-test/rooms', staff).expect(403);
+        const res = await get('/api/v1/gold-test/rooms', staff).expect(403);
         expect(res.body.message).toBe('Gold membership required');
       }
-      await get('/gold-test/staff-and-gold', USERS.librarian).expect(403);
+      await get('/api/v1/gold-test/staff-and-gold', USERS.librarian).expect(403);
     });
 
     it('guest → 401, also on a route marked @Public() and @GoldMember()', async () => {
-      await get('/gold-test/rooms').expect(401);
-      await get('/gold-test/public-and-gold').expect(401);
+      await get('/api/v1/gold-test/rooms').expect(401);
+      await get('/api/v1/gold-test/public-and-gold').expect(401);
       // @Public() skips authentication, so there is never a user to check:
       // even a gold member's token does not open it (fails closed).
-      await get('/gold-test/public-and-gold', MINE.gold).expect(401);
+      await get('/api/v1/gold-test/public-and-gold', MINE.gold).expect(401);
     });
 
     it('a disabled account with gold time left → 401 (locked out at login check)', async () => {
-      await get('/gold-test/rooms', MINE.disabled).expect(401);
+      await get('/api/v1/gold-test/rooms', MINE.disabled).expect(401);
     });
 
     it('gold still works on its last day', async () => {
-      await get('/gold-test/rooms', MINE.lastDay).expect(200);
-      const me = await get('/auth/me', MINE.lastDay).expect(200);
+      await get('/api/v1/gold-test/rooms', MINE.lastDay).expect(200);
+      const me = await get('/api/v1/auth/me', MINE.lastDay).expect(200);
       expect(me.body.member).toMatchObject({ tier: 'gold', goldUntil: today });
     });
 
     it('routes without @GoldMember() are untouched: a standard member passes', async () => {
-      await get('/gold-test/open', MINE.never).expect(200);
+      await get('/api/v1/gold-test/open', MINE.never).expect(200);
     });
 
     it('a controller-level @GoldMember() covers every route in it', async () => {
-      await get('/gold-test-class/a', MINE.gold).expect(200);
-      await get('/gold-test-class/b', MINE.gold).expect(200);
-      await get('/gold-test-class/a', MINE.never).expect(403);
-      await get('/gold-test-class/b', MINE.never).expect(403);
+      await get('/api/v1/gold-test-class/a', MINE.gold).expect(200);
+      await get('/api/v1/gold-test-class/b', MINE.gold).expect(200);
+      await get('/api/v1/gold-test-class/a', MINE.never).expect(403);
+      await get('/api/v1/gold-test-class/b', MINE.never).expect(403);
     });
 
     it('reads the database on every request: buying gold works at once, with the same token', async () => {
       const token = as(MINE.buyLater);
-      await request(server()).get('/gold-test/rooms').set(token).expect(403);
+      await request(server()).get('/api/v1/gold-test/rooms').set(token).expect(403);
       await request(server())
-        .post(`/users/${MINE.buyLater}/gold-membership`)
+        .post(`/api/v1/users/${MINE.buyLater}/gold-membership`)
         .set(as(USERS.librarian))
         .send({})
         .expect(201);
-      await request(server()).get('/gold-test/rooms').set(token).expect(200);
+      await request(server()).get('/api/v1/gold-test/rooms').set(token).expect(200);
     });
 
     it('reads the database on every request: gold that ends stops working at once, with the same token', async () => {
       const token = as(MINE.expireLater);
-      await request(server()).get('/gold-test/rooms').set(token).expect(200);
+      await request(server()).get('/api/v1/gold-test/rooms').set(token).expect(200);
       await setGoldUntil(MINE.expireLater, addDays(today, -1));
       const res = await request(server())
-        .get('/gold-test/rooms')
+        .get('/api/v1/gold-test/rooms')
         .set(token)
         .expect(403);
       expect(res.body.message).toBe('Gold membership required');
       // ...and renewing after it ended gives gold back.
       await request(server())
-        .post(`/users/${MINE.expireLater}/gold-membership`)
+        .post(`/api/v1/users/${MINE.expireLater}/gold-membership`)
         .set(as(USERS.librarian))
         .send({})
         .expect(201);
-      await request(server()).get('/gold-test/rooms').set(token).expect(200);
+      await request(server()).get('/api/v1/gold-test/rooms').set(token).expect(200);
     });
   });
 
@@ -235,9 +235,9 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
 
     it('the guard follows the same boundary', async () => {
       at('2031-06-15T16:59:59Z');
-      await get('/gold-test/rooms', MINE.boundary).expect(200);
+      await get('/api/v1/gold-test/rooms', MINE.boundary).expect(200);
       at('2031-06-15T17:00:00Z');
-      await get('/gold-test/rooms', MINE.boundary).expect(403);
+      await get('/api/v1/gold-test/rooms', MINE.boundary).expect(403);
     });
 
     it('isGold() for the real members', async () => {
@@ -254,7 +254,7 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
 
   describe('tier and goldUntil on /auth/me', () => {
     it('shows gold and the date for a gold member', async () => {
-      const res = await get('/auth/me', MINE.gold).expect(200);
+      const res = await get('/api/v1/auth/me', MINE.gold).expect(200);
       expect(res.body.member).toMatchObject({
         tier: 'gold',
         goldUntil: addDays(today, 30),
@@ -262,7 +262,7 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
     });
 
     it('shows standard and no date for a member who was never gold', async () => {
-      const res = await get('/auth/me', MINE.never).expect(200);
+      const res = await get('/api/v1/auth/me', MINE.never).expect(200);
       expect(res.body.member).toMatchObject({
         tier: 'standard',
         goldUntil: null,
@@ -270,7 +270,7 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
     });
 
     it('shows standard (with the old date) once gold ended', async () => {
-      const res = await get('/auth/me', MINE.ended).expect(200);
+      const res = await get('/api/v1/auth/me', MINE.ended).expect(200);
       expect(res.body.member).toMatchObject({
         tier: 'standard',
         goldUntil: addDays(today, -1),
@@ -278,14 +278,14 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
     });
 
     it('staff have no member part', async () => {
-      const res = await get('/auth/me', USERS.librarian).expect(200);
+      const res = await get('/api/v1/auth/me', USERS.librarian).expect(200);
       expect(res.body.member).toBeNull();
     });
   });
 
   describe('GET /users/members: tier, goldUntil and the tier filter', () => {
     const list = (query: string) =>
-      get(`/users/members?search=gm.&limit=100&${query}`, USERS.librarian);
+      get(`/api/v1/users/members?search=gm.&limit=100&${query}`, USERS.librarian);
     // The guard tests above bought and expired gold for two members; put them
     // back so this block does not depend on their order.
     beforeAll(async () => {
@@ -358,7 +358,7 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
     );
 
     it('a member cannot use the list', async () => {
-      await get('/users/members?tier=gold', MINE.gold).expect(403);
+      await get('/api/v1/users/members?tier=gold', MINE.gold).expect(403);
     });
   });
 });

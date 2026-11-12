@@ -17,7 +17,7 @@ describe('GET /dashboard/stats (e2e)', () => {
 
   it('returns the stat cards for an admin', async () => {
     const res = await request(app.getHttpServer())
-      .get('/dashboard/stats')
+      .get('/api/v1/dashboard/stats')
       .set(as(USERS.admin))
       .expect(200);
     expect(res.body.cards).toEqual({
@@ -42,7 +42,7 @@ describe('GET /dashboard/stats (e2e)', () => {
 
   it('breaks copies and loan items down by status, leaving out rejected requests', async () => {
     const res = await request(app.getHttpServer())
-      .get('/dashboard/stats')
+      .get('/api/v1/dashboard/stats')
       .set(as(USERS.librarian))
       .expect(200);
     const byStatus = (rows: { status: string; count: number }[]) =>
@@ -63,7 +63,7 @@ describe('GET /dashboard/stats (e2e)', () => {
 
   it('returns 30 days of loan activity and the top books and categories', async () => {
     const res = await request(app.getHttpServer())
-      .get('/dashboard/stats')
+      .get('/api/v1/dashboard/stats')
       .set(as(USERS.admin))
       .expect(200);
     const total = (key: 'requested' | 'borrowed' | 'returned') =>
@@ -97,13 +97,13 @@ describe('GET /dashboard/stats (e2e)', () => {
 
   it('is closed to members and anonymous callers', async () => {
     await request(app.getHttpServer())
-      .get('/dashboard/stats')
+      .get('/api/v1/dashboard/stats')
       .set(as(USERS.member))
       .expect(403);
-    await request(app.getHttpServer()).get('/dashboard/stats').expect(401);
+    await request(app.getHttpServer()).get('/api/v1/dashboard/stats').expect(401);
     // Inactive accounts are not resolved by the dev header at all
     await request(app.getHttpServer())
-      .get('/dashboard/stats')
+      .get('/api/v1/dashboard/stats')
       .set(as(USERS.inactiveMember))
       .expect(401);
   });

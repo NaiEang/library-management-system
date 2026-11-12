@@ -30,19 +30,19 @@ describe('Telegram reminders (e2e)', () => {
     });
 
     it('needs a login', async () => {
-      await request(app.getHttpServer()).post('/notifications/telegram/link').expect(401);
+      await request(app.getHttpServer()).post('/api/v1/notifications/telegram/link').expect(401);
     });
 
     it('says Telegram is not set up', async () => {
       await request(app.getHttpServer())
-        .post('/notifications/telegram/link')
+        .post('/api/v1/notifications/telegram/link')
         .set(as(USERS.member))
         .expect(503);
     });
 
     it('reports not linked', async () => {
       const res = await request(app.getHttpServer())
-        .get('/notifications/telegram')
+        .get('/api/v1/notifications/telegram')
         .set(as(USERS.member))
         .expect(200);
       expect(res.body).toEqual({ linked: false });
@@ -94,7 +94,7 @@ describe('Telegram reminders (e2e)', () => {
 
     it('links the account when the user presses Start on the link', async () => {
       const res = await request(app.getHttpServer())
-        .post('/notifications/telegram/link')
+        .post('/api/v1/notifications/telegram/link')
         .set(as(USERS.member))
         .expect(201);
       const token = /^https:\/\/t\.me\/LibraFlowTestBot\?start=([\w-]+)$/.exec(
@@ -110,7 +110,7 @@ describe('Telegram reminders (e2e)', () => {
       expect(sentTo(CHAT_ID).at(-1)?.body.text).toBe(BOT_REPLIES.linked);
 
       const status = await request(app.getHttpServer())
-        .get('/notifications/telegram')
+        .get('/api/v1/notifications/telegram')
         .set(as(USERS.member))
         .expect(200);
       expect(status.body).toEqual({ linked: true });
@@ -126,7 +126,7 @@ describe('Telegram reminders (e2e)', () => {
     it('sends the overdue and due-tomorrow reminders to the linked chat', async () => {
       const before = sentTo(CHAT_ID).length;
       await request(app.getHttpServer())
-        .post('/notifications/overdue/scan')
+        .post('/api/v1/notifications/overdue/scan')
         .set(as(USERS.librarian))
         .expect(200);
 
@@ -146,11 +146,11 @@ describe('Telegram reminders (e2e)', () => {
 
     it('stops when the user unlinks', async () => {
       await request(app.getHttpServer())
-        .delete('/notifications/telegram')
+        .delete('/api/v1/notifications/telegram')
         .set(as(USERS.member))
         .expect(204);
       const res = await request(app.getHttpServer())
-        .get('/notifications/telegram')
+        .get('/api/v1/notifications/telegram')
         .set(as(USERS.member))
         .expect(200);
       expect(res.body).toEqual({ linked: false });
