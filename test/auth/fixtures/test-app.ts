@@ -7,7 +7,7 @@ import { App } from 'supertest/types';
 import { AuthModule } from '../../../src/auth/auth.module';
 import { EmailVerificationCode } from '../../../src/auth/entities/email-verification-code.entity';
 import { RefreshToken } from '../../../src/auth/entities/refresh-token.entity';
-import { VERIFICATION_CODE_SENDER } from '../../../src/auth/email-verification/verification-code-sender';
+import { EmailNotifier } from '../../../src/notifications/channels/email-notifier';
 import { PasswordService } from '../../../src/auth/password/password.service';
 import { Member } from '../../../src/members/entities/member.entity';
 import { Payment } from '../../../src/payments/entities/payment.entity';
@@ -163,7 +163,7 @@ export async function createTestApp(
     .useValue(new FakeRepository<Payment>())
     .overrideProvider(getRepositoryToken(EmailVerificationCode))
     .useValue(codeRepository)
-    .overrideProvider(VERIFICATION_CODE_SENDER)
+    .overrideProvider(EmailNotifier)
     .useValue(sender)
     .compile();
 

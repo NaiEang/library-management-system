@@ -21,7 +21,7 @@ import {
   SEND_FAILED,
 } from './email-verification.service';
 import { deriveCodeKey, hashCode } from './verification-code';
-import type { VerificationCodeSender } from './verification-code-sender';
+import type { EmailNotifier } from '../../notifications/channels/email-notifier';
 
 const SECRET = 'unit-test-only-jwt-secret-4Hq9zLm2Xc7Vb1Nf';
 const NOW = new Date('2026-11-12T03:00:00Z');
@@ -83,7 +83,7 @@ function setup({
   const service = new EmailVerificationService(
     codes as unknown as Repository<EmailVerificationCode>,
     usersService as unknown as UsersService,
-    sender as VerificationCodeSender,
+    sender as unknown as EmailNotifier,
     audit as unknown as AuthAuditService,
     { jwtAccessSecret: SECRET } as AuthConfig,
   );

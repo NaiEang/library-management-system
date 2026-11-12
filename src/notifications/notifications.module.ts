@@ -5,7 +5,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ActivityLog } from './../dashboard/entities/activity-log.entity';
 import { LoanItem } from '../loans/entities/loan-item.entity';
-import { notifierProvider } from './channels/notifier.provider';
+import { NotifierModule } from './channels/notifier.module';
 import { Notification } from './entities/notification.entity';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
@@ -18,12 +18,12 @@ import { OVERDUE_QUEUE } from './overdue/overdue.constants';
   controllers: [NotificationsController, OverdueController],
   providers: [
     NotificationsService,
-    notifierProvider,
     OverdueScanService,
     OverdueNotificationProcessor,
   ],
   imports: [
     TypeOrmModule.forFeature([Notification, ActivityLog, LoanItem]),
+    NotifierModule,
     BullModule.registerQueue({ name: OVERDUE_QUEUE }),
     BullBoardModule.forFeature({ name: OVERDUE_QUEUE, adapter: BullMQAdapter }),
   ],

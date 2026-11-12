@@ -1,9 +1,13 @@
-// Where an outgoing message is delivered (log, email, later Telegram).
-// The in-app notification row is saved separately by the caller.
+export type Recipient = { userId: string; email: string | null; name: string };
+
+// NOTIFIER: tell a user something, over whatever channel is configured
+// (log, email, later Telegram). The in-app notification row is saved
+// separately by the caller. Messages that must go by email, such as
+// verification codes, use EmailNotifier directly instead.
 export const NOTIFIER = Symbol('NOTIFIER');
 
 export interface OutgoingMessage {
-  to: { userId: string; email: string | null; name: string };
+  to: Recipient;
   subject: string;
   text: string;
 }
