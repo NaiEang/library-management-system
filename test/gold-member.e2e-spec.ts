@@ -25,6 +25,7 @@ const MINE = {
   buyLater: 9307,
   expireLater: 9308,
   boundary: 9309,
+  lastDay: 9310,
 };
 
 describe('@GoldMember() and the gold tier (e2e)', () => {
@@ -65,6 +66,7 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
         MINE.buyLater,
         MINE.expireLater,
         MINE.boundary,
+        MINE.lastDay,
       ].map((id) => user(id)),
       user(MINE.disabled, 'disabled'),
     ]);
@@ -105,6 +107,8 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
         expiry_date: '2040-01-01',
         gold_until: '2031-06-15',
       }),
+      // Gold counts through its last day.
+      member(MINE.lastDay, { gold_until: today }),
     ]);
   });
 
@@ -157,6 +161,12 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
 
     it('a disabled account with gold time left → 401 (locked out at login check)', async () => {
       await get('/gold-test/rooms', MINE.disabled).expect(401);
+    });
+
+    it('gold still works on its last day', async () => {
+      await get('/gold-test/rooms', MINE.lastDay).expect(200);
+      const me = await get('/auth/me', MINE.lastDay).expect(200);
+      expect(me.body.member).toMatchObject({ tier: 'gold', goldUntil: today });
     });
 
     it('routes without @GoldMember() are untouched: a standard member passes', async () => {
@@ -317,6 +327,7 @@ describe('@GoldMember() and the gold tier (e2e)', () => {
           MINE.disabled,
           MINE.expireLater,
           MINE.boundary,
+          MINE.lastDay,
         ].sort((a, b) => a - b),
       );
     });
