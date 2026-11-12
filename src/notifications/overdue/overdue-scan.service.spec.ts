@@ -6,7 +6,10 @@ import type { LoanItem } from '../../loans/entities/loan-item.entity';
 import { OverdueScanService } from './overdue-scan.service';
 import type { OverdueJobData } from './overdue.constants';
 
-function setup(env: Record<string, string> = {}) {
+function setup(
+  env: Record<string, string> = {},
+  upcoming: Array<{ id: string; dueDate: Date }> = [],
+) {
   const execute = vi.fn(() => Promise.resolve({ affected: 1 }));
   const qb = {
     update: vi.fn(() => qb),
@@ -15,7 +18,11 @@ function setup(env: Record<string, string> = {}) {
     andWhere: vi.fn(() => qb),
     execute,
   };
-  const find = vi.fn(() => Promise.resolve([{ id: '2' }, { id: '5' }]));
+  // First call: overdue items; second: borrowed items due in the next 48 hours
+  const find = vi
+    .fn()
+    .mockResolvedValueOnce([{ id: '2' }, { id: '5' }])
+    .mockResolvedValueOnce(upcoming);
   const addBulk = vi.fn(() => Promise.resolve([]));
   const addCronJob = vi.fn();
   const service = new OverdueScanService(
@@ -33,7 +40,13 @@ describe('OverdueScanService', () => {
     // 2026-11-10 23:30 UTC is already the 11th in Phnom Penh (UTC+7)
     const now = new Date('2026-11-10T23:30:00Z');
 
-    await expect(service.scan(now)).resolves.toEqual({ marked: 1, queued: 2 });
+    await expect(service.scan(now)).resolves.toEqual({
+      marked: 1,
+      queued: 2,
+      overdue: 2,
+      dueToday: 0,
+      dueTomorrow: 0,
+    });
 
     expect(qb.set).toHaveBeenCalledWith({ status: 'overdue' });
     expect(qb.where).toHaveBeenCalledWith('status = :borrowed', { borrowed: 'borrowed' });
@@ -45,6 +58,38 @@ describe('OverdueScanService', () => {
     expect(jobs.map((j) => j.opts.jobId)).toEqual([
       'overdue-2-2026-11-11',
       'overdue-5-2026-11-11',
+    ]);
+  });
+
+  it('queues due-today and due-tomorrow reminders by library date', async () => {
+    // 2026-11-11 08:00 in Phnom Penh (UTC+7)
+    const now = new Date('2026-11-11T01:00:00Z');
+    const { service, find, addBulk } = setup({}, [
+      // 2026-11-11 17:00 Phnom Penh: today
+      { id: '6', dueDate: new Date('2026-11-11T10:00:00Z') },
+      // 2026-11-12 00:30 Phnom Penh: tomorrow, though still the 11th in UTC
+      { id: '7', dueDate: new Date('2026-11-11T17:30:00Z') },
+      // 2026-11-13 06:00 Phnom Penh: the day after tomorrow, no reminder yet
+      { id: '8', dueDate: new Date('2026-11-12T23:00:00Z') },
+    ]);
+
+    await expect(service.scan(now)).resolves.toMatchObject({
+      queued: 4,
+      overdue: 2,
+      dueToday: 1,
+      dueTomorrow: 1,
+    });
+    expect(find.mock.calls[1][0]).toMatchObject({
+      where: { status: 'borrowed' },
+    });
+    const jobs = (addBulk.mock.calls[0] as unknown as [Array<{ data: unknown; opts: { jobId: string } }>])[0];
+    expect(jobs.slice(2).map((j) => j.data)).toEqual([
+      { loanItemId: '6', kind: 'due-today' },
+      { loanItemId: '7', kind: 'due-tomorrow' },
+    ]);
+    expect(jobs.slice(2).map((j) => j.opts.jobId)).toEqual([
+      'due-today-6-2026-11-11',
+      'due-tomorrow-7-2026-11-11',
     ]);
   });
 

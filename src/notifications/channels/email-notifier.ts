@@ -4,7 +4,12 @@ import {
   type EmailConfig,
   type MailTransport,
 } from './email.config';
-import type { Notifier, OutgoingMessage, Recipient } from './notifier';
+import {
+  SIGN_OFF,
+  type Notifier,
+  type OutgoingMessage,
+  type Recipient,
+} from './notifier';
 
 // All outgoing email. send() is used when email is the NOTIFIER channel;
 // sendVerificationCode() always goes by email, whatever NOTIFIER is.
@@ -34,7 +39,7 @@ export class EmailNotifier implements Notifier {
     await this.mail(
       message.to.email,
       message.subject,
-      `Hello ${message.to.name},\n\n${message.text}\n`,
+      `Hello ${message.to.name},\n\n${message.text}\n\n${SIGN_OFF}\n`,
     );
   }
 
@@ -60,7 +65,8 @@ export class EmailNotifier implements Notifier {
       `Hello ${recipient.name},\n\n` +
         `Your verification code is ${code}\n\n` +
         `It expires in ${expiresInMinutes} minutes. ` +
-        `If you did not create a LibraFlow account, you can ignore this email.\n`,
+        `If you did not create a LibraFlow account, you can ignore this email.\n\n` +
+        `${SIGN_OFF}\n`,
     );
   }
 

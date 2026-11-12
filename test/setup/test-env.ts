@@ -15,4 +15,6 @@ export const TEST_ENV = {
   OVERDUE_SCAN_CRON: 'off',
   // Reminders go to the log, never to a real mailbox
   SMTP_HOST: '',
+  // No Telegram bot: nothing contacts api.telegram.org
+  TELEGRAM_BOT_TOKEN: '',
 };

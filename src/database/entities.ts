@@ -10,6 +10,7 @@ import { LoanItem } from '../loans/entities/loan-item.entity';
 import { Loan } from '../loans/entities/loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Notification } from '../notifications/entities/notification.entity';
+import { TelegramLink } from '../notifications/entities/telegram-link.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Role } from '../users/entities/role.entity';
 import { User } from '../users/entities/user.entity';
@@ -31,4 +32,5 @@ export const ENTITIES = [
   ActivityLog,
   RefreshToken,
   EmailVerificationCode,
+  TelegramLink,
 ];

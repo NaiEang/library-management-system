@@ -1,11 +1,23 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { EmailNotifier } from './email-notifier';
-import { NOTIFIER } from './notifier';
-import { emailNotifierProvider, notifierProvider } from './notifier.provider';
+import { NOTIFIERS } from './notifier';
+import {
+  emailNotifierProvider,
+  notifiersProvider,
+  telegramNotifierProvider,
+} from './notifier.provider';
+import { TelegramNotifier } from './telegram-notifier';
 
-// Delivery for Notifications (NOTIFIER) and Auth (EmailNotifier).
+// Delivery for Notifications (NOTIFIERS, TelegramNotifier for the bot) and
+// Auth (EmailNotifier).
 @Module({
-  providers: [emailNotifierProvider, notifierProvider],
-  exports: [NOTIFIER, EmailNotifier],
+  imports: [ConfigModule],
+  providers: [
+    emailNotifierProvider,
+    telegramNotifierProvider,
+    notifiersProvider,
+  ],
+  exports: [NOTIFIERS, EmailNotifier, TelegramNotifier],
 })
 export class NotifierModule {}
