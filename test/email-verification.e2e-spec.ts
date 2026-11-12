@@ -5,7 +5,7 @@ import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
-import { VERIFICATION_CODE_SENDER } from '../src/auth/email-verification/verification-code-sender';
+import { EmailNotifier } from '../src/notifications/channels/email-notifier';
 import { insertRows } from '../src/database/insert-rows';
 import { localDataSource } from '../src/database/local-db';
 import { as } from './setup/app';
@@ -93,7 +93,7 @@ describe('Email verification (e2e)', () => {
   beforeEach(async () => {
     sent = [];
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(VERIFICATION_CODE_SENDER)
+      .overrideProvider(EmailNotifier)
       .useValue({
         sendVerificationCode: (
           to: { userId: string; email: string },

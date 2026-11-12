@@ -1,6 +1,8 @@
 import {
   addDays,
   addYears,
+  daysBetween,
+  formatLibraryDate,
   isValidTimeZone,
   libraryToday,
   tierOf,
@@ -79,5 +81,23 @@ describe('tierOf', () => {
     [null, 'standard'],
   ])('gold_until %s on 2026-11-12 → %s', (goldUntil, tier) => {
     expect(tierOf(goldUntil, '2026-11-12')).toBe(tier);
+  });
+});
+
+describe('formatLibraryDate', () => {
+  it('formats in the library calendar, not the server one', () => {
+    // 2026-11-12 23:30 UTC is already Friday the 13th in Phnom Penh
+    expect(
+      formatLibraryDate('Asia/Phnom_Penh', new Date('2026-11-12T23:30:00Z')),
+    ).toBe('Fri, 13 Nov 2026');
+  });
+});
+
+describe('daysBetween', () => {
+  it('counts whole calendar days, across months and years', () => {
+    expect(daysBetween('2026-11-09', '2026-11-12')).toBe(3);
+    expect(daysBetween('2026-12-31', '2027-01-01')).toBe(1);
+    expect(daysBetween('2026-11-12', '2026-11-12')).toBe(0);
+    expect(daysBetween('2026-11-12', '2026-11-09')).toBe(-3);
   });
 });

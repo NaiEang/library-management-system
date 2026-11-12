@@ -26,10 +26,7 @@ import {
   RESEND_COOLDOWN_SECONDS,
   SEND_WINDOW_HOURS,
 } from './verification-code';
-import {
-  VERIFICATION_CODE_SENDER,
-  type VerificationCodeSender,
-} from './verification-code-sender';
+import { EmailNotifier } from '../../notifications/channels/email-notifier';
 
 export const ALREADY_VERIFIED = 'Email already verified';
 export const NO_CODE = 'No verification code was sent; request a new one';
@@ -44,7 +41,7 @@ type VerifyOutcome =
   | { result: 'wrong'; attemptsLeft: number };
 
 // Owns the code: creates it, stores only its HMAC, checks it and marks the
-// email verified. Sending the email is the VerificationCodeSender's job.
+// email verified. Sending the email is EmailNotifier's job.
 @Injectable()
 export class EmailVerificationService {
   private readonly key: Buffer;
@@ -53,8 +50,7 @@ export class EmailVerificationService {
     @InjectRepository(EmailVerificationCode)
     private readonly codes: Repository<EmailVerificationCode>,
     private readonly usersService: UsersService,
-    @Inject(VERIFICATION_CODE_SENDER)
-    private readonly sender: VerificationCodeSender,
+    private readonly email: EmailNotifier,
     private readonly audit: AuthAuditService,
     @Inject(authConfig.KEY) config: ConfigType<typeof authConfig>,
   ) {
@@ -82,7 +78,7 @@ export class EmailVerificationService {
     }
 
     try {
-      await this.sender.sendVerificationCode(
+      await this.email.sendVerificationCode(
         { userId, email: user.email, name: user.name },
         code,
         CODE_TTL_MINUTES,

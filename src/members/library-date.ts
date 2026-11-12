@@ -14,6 +14,26 @@ export function libraryToday(timeZone: string, now: Date = new Date()): string {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
+// A date for people to read, in the library's calendar: "Fri, 13 Nov 2026".
+export function formatLibraryDate(timeZone: string, date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+// Whole calendar days from one YYYY-MM-DD date to another (negative if earlier).
+export function daysBetween(from: string, to: string): number {
+  const utc = (date: string) => {
+    const [year, month, day] = date.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((utc(to) - utc(from)) / 86_400_000);
+}
+
 export function isValidTimeZone(timeZone: string): boolean {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone });

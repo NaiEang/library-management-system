@@ -7,6 +7,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
 import { MembersModule } from '../members/members.module';
+import { NotifierModule } from '../notifications/channels/notifier.module';
 import { UsersModule } from '../users/users.module';
 import { AccountsService } from './accounts/accounts.service';
 import { UserAccountsController } from './accounts/user-accounts.controller';
@@ -17,7 +18,6 @@ import { authConfig } from './config/auth.config';
 import { EmailVerificationCode } from './entities/email-verification-code.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { EmailVerificationService } from './email-verification/email-verification.service';
-import { verificationCodeSenderProvider } from './email-verification/verification-code-sender';
 import { GoldMemberGuard } from './guards/gold-member.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -47,6 +47,8 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
     UsersModule,
     // MembershipService, for GoldMemberGuard.
     MembersModule,
+    // EmailNotifier: emails the verification code (printed in development).
+    NotifierModule,
   ],
   controllers: [AuthController, UserAccountsController],
   providers: [
@@ -55,8 +57,6 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
     AccountsService,
     RefreshTokenService,
     EmailVerificationService,
-    // Development stand-in until Notifications provides the real email sender.
-    verificationCodeSenderProvider,
     JwtStrategy,
     // Global guards run in this order: authentication, then roles, then
     // @GoldMember() (which needs the user the first guard loaded).

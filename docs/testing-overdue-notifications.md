@@ -3,11 +3,15 @@
 ## How it works
 
 1. **Every day at 08:00** a scan finds loan items that are past their due date and not
-   returned, and marks them `overdue`.
-2. For each overdue item it puts **one job on a BullMQ queue** (stored in Redis).
-3. A **worker** picks up each job, saves an in-app notification for the student:
+   returned, and marks them `overdue`. It also finds borrowed books **due today** and
+   **due tomorrow** (library calendar, `LIBRARY_TIME_ZONE`).
+2. For each of those it puts **one job on a BullMQ queue** (stored in Redis).
+3. A **worker** picks up each job, saves an in-app notification for the student
+   (`LOAN_DUE_SOON`, `LOAN_DUE_TODAY` or `LOAN_OVERDUE`), for example:
    *Your book "&lt;title&gt;" is overdue. You are blocked until you return it.*
-   and emails it if `SMTP_HOST` is set (otherwise it only writes it to the log).
+   It emails it if `SMTP_HOST` is set (otherwise it only writes it to the log), and
+   also sends it on **Telegram** if `TELEGRAM_BOT_TOKEN` is set and the student linked
+   their Telegram (see below).
 4. While a student has an overdue book, **they can't borrow** anything else.
 
 You don't have to wait for 08:00: staff can run the same scan any time with
@@ -37,8 +41,9 @@ npm run test:e2e -- test/overdue-notifications.e2e-spec.ts test/loans-access.e2e
 `accessToken`.
 
 **2. Run the scan.** Call `POST /notifications/overdue/scan`.
-You get `{ "marked": n, "queued": n }`: `marked` is how many books just became overdue,
-`queued` is how many reminders were put on the queue.
+You get `{ "marked": n, "queued": n, "overdue": n, "dueToday": n, "dueTomorrow": n }`:
+`marked` is how many books just became overdue, `queued` is how many reminders were put on
+the queue (the last three counts together).
 
 **3. Watch the queue.** Open http://localhost:3000/queues (login `admin` / `1234`).
 The jobs should be in **completed**; open one and you'll see `sent: true`.
@@ -58,8 +63,20 @@ password) who has an overdue book and call `POST /loans/request` with
 A member without overdue books gets the loan instead.
 Members also get `403` if they try `PATCH /loans/{id}/approve`, which is staff only.
 
+## Telegram
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and set `TELEGRAM_BOT_TOKEN` in `.env`.
+2. As a member, call `POST /notifications/telegram/link`. You get `{ "url": "https://t.me/<bot>?start=..." }`.
+3. Open the url and press **Start**. The bot replies *Linked!* and
+   `GET /notifications/telegram` now returns `{ "linked": true }`.
+4. Run the scan (step 2 above): the reminders arrive in Telegram as well as by email.
+
+The link works once and expires after 15 minutes. `DELETE /notifications/telegram`, or `/stop`
+in the bot, unlinks; blocking the bot unlinks too. Run the bot's polling on one instance only
+(`TELEGRAM_POLLING=off` on the others).
+
 ## Notes
 
-- Settings (`OVERDUE_SCAN_CRON`, `QUEUE_DASHBOARD_*`, `SMTP_*`) are explained in `.env.example`.
+- Settings (`OVERDUE_SCAN_CRON`, `QUEUE_DASHBOARD_*`, `SMTP_*`, `TELEGRAM_*`) are explained in `.env.example`.
 - `/queues` says Not Found: the dashboard password is empty, or restart `start:dev` after editing `.env`.
-- Not done yet: an endpoint to list notifications, Telegram, and fines on late return.
+- Not done yet: an endpoint to list notifications, and fines on late return.
