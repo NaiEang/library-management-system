@@ -19,6 +19,8 @@ export interface AuthConfig {
   refreshAbsoluteTtlStaffSeconds: number;
   frontendOrigin: string;
   depositAmount: number;
+  // Yearly price of the gold tier, recorded as a payment.
+  goldMembershipFee: number;
   // IANA zone that defines the library's "today" (membership expiry).
   libraryTimeZone: string;
   // Email domains allowed for member self-registration (e.g. itc.edu.kh). Empty
@@ -65,6 +67,12 @@ class AuthEnv {
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   DEPOSIT_AMOUNT = 5;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  GOLD_MEMBERSHIP_FEE = 5;
 
   @IsOptional()
   @IsString()
@@ -149,6 +157,7 @@ export function validateAuthEnv(env: Record<string, unknown>): AuthConfig {
     ),
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     depositAmount: parsed.DEPOSIT_AMOUNT,
+    goldMembershipFee: parsed.GOLD_MEMBERSHIP_FEE,
     libraryTimeZone: parsed.LIBRARY_TIME_ZONE,
     memberEmailDomains: domains,
   };

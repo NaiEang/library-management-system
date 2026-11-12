@@ -3,6 +3,7 @@ import { BookCopy } from '../books/entities/book-copy.entity';
 import { Author } from '../books/entities/author.entity';
 import { Book } from '../books/entities/book.entity';
 import { Category } from '../books/entities/category.entity';
+import { EmailVerificationCode } from '../auth/entities/email-verification-code.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { ActivityLog } from '../dashboard/entities/activity-log.entity';
 import { LoanItem } from '../loans/entities/loan-item.entity';
@@ -29,4 +30,5 @@ export const ENTITIES = [
   Notification,
   ActivityLog,
   RefreshToken,
+  EmailVerificationCode,
 ];

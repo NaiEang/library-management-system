@@ -13,6 +13,7 @@ import {
 import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthService } from './auth.service';
 import { AuthConfig } from './config/auth.config';
+import { EmailVerificationService } from './email-verification/email-verification.service';
 import { PasswordService } from './password/password.service';
 import { RefreshTokenService } from './tokens/refresh-token.service';
 
@@ -26,6 +27,7 @@ const member: LoginCandidate = {
   roleName: 'member',
   memberId: '30',
   membershipStatus: 'pending_deposit',
+  emailVerified: false,
 };
 
 async function setup(
@@ -84,12 +86,14 @@ async function setup(
   };
   const jwtService = { signAsync: vi.fn(() => Promise.resolve('signed.jwt')) };
   const audit = { record: vi.fn() };
+  const emailVerification = { sendCode: vi.fn(() => Promise.resolve()) };
   const service = new AuthService(
     usersService as unknown as UsersService,
     passwordService as unknown as PasswordService,
     refreshTokens as unknown as RefreshTokenService,
     jwtService as unknown as JwtService,
     audit as unknown as AuthAuditService,
+    emailVerification as unknown as EmailVerificationService,
     { jwtAccessTtlSeconds: 900, memberEmailDomains: domains } as AuthConfig,
   );
   await service.onModuleInit();
@@ -100,6 +104,7 @@ async function setup(
     refreshTokens,
     jwtService,
     audit,
+    emailVerification,
     transactionManager,
   };
 }
@@ -143,6 +148,7 @@ describe('AuthService.login', () => {
         username: 'goodstudent',
         role: 'member',
         membershipStatus: 'pending_deposit',
+        emailVerified: false,
       },
     });
   });
@@ -235,6 +241,8 @@ describe('AuthService.register', () => {
       username: 'newmember',
       role: 'member',
       membershipStatus: 'pending_deposit',
+      emailVerified: false,
+      verificationCodeSent: true,
     });
     expect(passwordService.hash).toHaveBeenCalledWith(dto.password);
     expect(usersService.registerMember).toHaveBeenCalledWith({
@@ -270,6 +278,30 @@ describe('AuthService.register', () => {
       expect(usersService.registerMember).not.toHaveBeenCalled();
     },
   );
+
+  it('emails the first verification code to the new member', async () => {
+    const { service, emailVerification } = await setup(null);
+    await service.register(dto);
+    expect(emailVerification.sendCode).toHaveBeenCalledWith('41');
+  });
+
+  it('still creates the account when the first code cannot be sent', async () => {
+    const { service, emailVerification } = await setup(null);
+    emailVerification.sendCode.mockRejectedValueOnce(new Error('SMTP down'));
+    await expect(service.register(dto)).resolves.toMatchObject({
+      id: '41',
+      verificationCodeSent: false,
+    });
+  });
+
+  it('sends no code when the sign-up is refused', async () => {
+    const { service, usersService, emailVerification } = await setup(null);
+    usersService.registerMember.mockRejectedValueOnce(
+      new ConflictException('Email already registered'),
+    );
+    await expect(service.register(dto)).rejects.toThrow(ConflictException);
+    expect(emailVerification.sendCode).not.toHaveBeenCalled();
+  });
 
   it('passes a 409 from the users service through', async () => {
     const { service, usersService } = await setup(null);

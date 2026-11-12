@@ -30,6 +30,11 @@ import { MembershipStatus } from '../../common/constants';
   'CHK_members_membership_status',
   `"membership_status" IN ('pending_deposit', 'active', 'expired')`,
 )
+// Gold always ends after the membership started (it's bought on an active one).
+@Check(
+  'CHK_members_gold_until',
+  `"gold_until" IS NULL OR "gold_until" > "membership_date"`,
+)
 export class Member {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: string;
@@ -78,6 +83,12 @@ export class Member {
   @ManyToOne(() => User, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'deposit_verified_by' })
   depositVerifiedByUser: Relation<User> | null;
+
+  // Last day (library date) of the paid gold tier; NULL = never gold. The
+  // member is gold while this date hasn't passed: no tier column that could
+  // disagree with it, and nothing to reset when it ends.
+  @Column({ name: 'gold_until', type: 'date', nullable: true })
+  goldUntil: string | null;
 
   // Late-return penalty, written by Circulation (Naieang). The Auth & Users
   // module never writes it and never returns it.

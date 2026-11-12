@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, QueryFailedError, Repository } from 'typeorm';
+import { EntityManager, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { authConfig } from '../auth/config/auth.config';
 import { checkPasswordPolicy } from '../auth/password/password-policy';
 import { PasswordService } from '../auth/password/password.service';
@@ -41,6 +41,7 @@ export interface LoginCandidate {
   roleName: string | null;
   memberId: string | null;
   membershipStatus: string | null;
+  emailVerified: boolean;
 }
 
 // Input for a self-registered member. Normalized and validated by the caller;
@@ -52,6 +53,14 @@ export interface NewMemberInput {
   firstName?: string;
   lastName?: string;
   phone?: string;
+}
+
+// Who a verification code is for. Never includes the password hash.
+export interface VerificationTarget {
+  id: string;
+  email: string;
+  name: string;
+  emailVerifiedAt: Date | null;
 }
 
 export interface RegisteredMember {
@@ -132,6 +141,7 @@ export class UsersService {
         username: true,
         status: true,
         passwordHash: true,
+        emailVerifiedAt: true,
         role: { id: true, name: true },
         member: { id: true, membershipStatus: true },
       },
@@ -148,6 +158,7 @@ export class UsersService {
       roleName: user.role?.name ?? null,
       memberId: user.member?.id ?? null,
       membershipStatus: user.member?.membershipStatus ?? null,
+      emailVerified: user.emailVerifiedAt != null,
     };
   }
 
@@ -179,6 +190,43 @@ export class UsersService {
     );
   }
 
+  async findVerificationTarget(id: string): Promise<VerificationTarget | null> {
+    const user = await this.usersRepository.findOne({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        emailVerifiedAt: true,
+      },
+    });
+    if (!user) {
+      return null;
+    }
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+    return {
+      id: user.id,
+      email: user.email,
+      name: fullName || user.username,
+      emailVerifiedAt: user.emailVerifiedAt ?? null,
+    };
+  }
+
+  // Only sets the date once: a verified email stays verified at its first date.
+  async markEmailVerified(
+    id: string,
+    at: Date,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await (manager ?? this.usersRepository.manager).update(
+      User,
+      { id, emailVerifiedAt: IsNull() },
+      { emailVerifiedAt: at },
+    );
+  }
+
   async recordLogin(id: string): Promise<void> {
     await this.usersRepository.update({ id }, { lastLoginAt: new Date() });
   }
@@ -188,7 +236,9 @@ export class UsersService {
       where: { id },
       relations: { role: true, member: true },
     });
-    return user ? toUserProfile(user) : null;
+    return user
+      ? toUserProfile(user, libraryToday(this.config.libraryTimeZone))
+      : null;
   }
 
   // Creates the MEMBER user and its pending_deposit member row in ONE
@@ -311,6 +361,9 @@ export class UsersService {
       lastName: input.lastName,
       phone: input.phone,
       status: UserStatus.ACTIVE,
+      // Staff are created by an admin or manager, who vouches for the email;
+      // members prove it themselves with a code.
+      emailVerifiedAt: roleName === RoleName.MEMBER ? null : new Date(),
     });
     return String(inserted.identifiers[0].id);
   }

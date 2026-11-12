@@ -25,6 +25,7 @@ import {
 } from './dto/auth-responses';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RegisterDto } from './dto/register.dto';
+import { EmailVerificationService } from './email-verification/email-verification.service';
 import { checkPasswordPolicy } from './password/password-policy';
 import { PasswordService } from './password/password.service';
 import { RefreshTokenService } from './tokens/refresh-token.service';
@@ -60,6 +61,7 @@ export class AuthService implements OnModuleInit {
     private readonly refreshTokens: RefreshTokenService,
     private readonly jwtService: JwtService,
     private readonly audit: AuthAuditService,
+    private readonly emailVerification: EmailVerificationService,
     @Inject(authConfig.KEY)
     private readonly config: ConfigType<typeof authConfig>,
   ) {}
@@ -125,6 +127,7 @@ export class AuthService implements OnModuleInit {
         username: candidate.username,
         role,
         membershipStatus: candidate.membershipStatus,
+        emailVerified: candidate.emailVerified,
       },
     };
   }
@@ -204,11 +207,12 @@ export class AuthService implements OnModuleInit {
   }
 
   // Self sign-up: always a MEMBER whose membership waits for the deposit.
-  // Doesn't log the user in. Email and username arrive normalized (DTO).
+  // Doesn't log the user in, but emails the first verification code.
+  // Email and username arrive normalized (DTO).
   async register(dto: RegisterDto): Promise<RegisterResponse> {
     // The email is the identifier shared with Space Booking, so members must
-    // sign up with a school address when MEMBER_EMAIL_DOMAINS is set. It
-    // doesn't prove ownership: the librarian's desk check (deposit) does.
+    // sign up with a school address when MEMBER_EMAIL_DOMAINS is set.
+    // Ownership is proved by the code sent below.
     const allowed = this.config.memberEmailDomains;
     if (
       allowed.length > 0 &&
@@ -240,7 +244,20 @@ export class AuthService implements OnModuleInit {
       username: member.username,
       role: RoleName.MEMBER,
       membershipStatus: MembershipStatus.PENDING_DEPOSIT,
+      emailVerified: false,
+      verificationCodeSent: await this.sendFirstCode(member.id),
     };
+  }
+
+  // The account exists either way: if the first email fails, the member logs
+  // in and asks for a new code.
+  private async sendFirstCode(userId: string): Promise<boolean> {
+    try {
+      await this.emailVerification.sendCode(userId);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

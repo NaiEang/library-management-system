@@ -2,7 +2,11 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { AuthConfig } from '../auth/config/auth.config';
 import { Member } from './entities/member.entity';
-import { escapeLike, MembersService } from './members.service';
+import {
+  EMAIL_NOT_VERIFIED,
+  escapeLike,
+  MembersService,
+} from './members.service';
 
 const config = {
   libraryTimeZone: 'Asia/Phnom_Penh',
@@ -26,6 +30,7 @@ const activeUser = {
   email: 'member@demo.test',
   username: 'member',
   status: 'active',
+  emailVerifiedAt: new Date('2026-11-08T09:00:00Z'),
 };
 
 // Plain objects shaped like the rows the database returns.
@@ -78,6 +83,7 @@ describe('MembersService.verifyDeposit', () => {
       userId: '3',
       memberId: '30',
       membershipStatus: 'active',
+      emailVerified: true,
       depositAmount: 5,
       expiryDate: '2027-11-09',
     });
@@ -122,6 +128,17 @@ describe('MembersService.verifyDeposit', () => {
     expect(manager.update).not.toHaveBeenCalled();
   });
 
+  it('an unverified email → 409, nothing written', async () => {
+    const { service, manager } = setup(pendingMember(), {
+      ...activeUser,
+      emailVerifiedAt: null,
+    });
+    await expect(service.verifyDeposit('3', '2')).rejects.toThrow(
+      new ConflictException(EMAIL_NOT_VERIFIED),
+    );
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
   it('a user who is not a member (e.g. a librarian) → 404', async () => {
     const { service } = setup(null);
     await expect(service.verifyDeposit('2', '1')).rejects.toThrow(
@@ -138,5 +155,86 @@ describe('escapeLike', () => {
     ['plain', 'plain'],
   ])('%s → %s', (input, expected) => {
     expect(escapeLike(input)).toBe(expected);
+  });
+});
+
+describe('MembersService.list: the tier filter', () => {
+  // 2026-11-12 in Phnom Penh.
+  afterEach(() => vi.useRealTimers());
+
+  async function runList(query: Record<string, unknown>) {
+    vi.useFakeTimers({ now: new Date('2026-11-12T03:00:00Z') });
+    const builder = {
+      innerJoinAndSelect: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      skip: vi.fn().mockReturnThis(),
+      take: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      getManyAndCount: vi.fn(() =>
+        Promise.resolve([
+          [
+            {
+              ...pendingMember(),
+              goldUntil: '2026-11-12',
+              user: activeUser,
+            },
+            {
+              ...pendingMember(),
+              id: '31',
+              goldUntil: '2026-11-11',
+              user: activeUser,
+            },
+            { ...pendingMember(), id: '32', goldUntil: null, user: activeUser },
+          ],
+          3,
+        ]),
+      ),
+    };
+    const service = new MembersService(
+      {
+        createQueryBuilder: vi.fn(() => builder),
+      } as unknown as Repository<Member>,
+      config,
+    );
+    const page = await service.list({
+      page: 1,
+      limit: 20,
+      ...query,
+    } as never);
+    return { page, builder };
+  }
+
+  it('gold: only gold periods that have not ended, with the date as a bound parameter', async () => {
+    const { builder } = await runList({ tier: 'gold' });
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      'member.goldUntil >= :today',
+      {
+        today: '2026-11-12',
+      },
+    );
+  });
+
+  it('standard: never gold, or gold that ended', async () => {
+    const { builder } = await runList({ tier: 'standard' });
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      '(member.goldUntil IS NULL OR member.goldUntil < :today)',
+      { today: '2026-11-12' },
+    );
+  });
+
+  it('adds no tier condition when the filter is absent', async () => {
+    const { builder } = await runList({});
+    expect(builder.andWhere).not.toHaveBeenCalled();
+  });
+
+  it('shows tier and goldUntil on each row, worked out from the date', async () => {
+    const { page } = await runList({});
+    expect(
+      page.data.map((row) => [row.memberId, row.tier, row.goldUntil]),
+    ).toEqual([
+      ['30', 'gold', '2026-11-12'],
+      ['31', 'standard', '2026-11-11'],
+      ['32', 'standard', null],
+    ]);
   });
 });
