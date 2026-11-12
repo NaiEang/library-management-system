@@ -20,6 +20,8 @@ export interface UserProfileResponse {
   phone: string | null;
   role: string;
   status: string;
+  // false until a member enters the code from their email; staff are true.
+  emailVerified: boolean;
   lastLoginAt: Date | null;
   member: MemberSummary | null;
 }
@@ -37,6 +39,7 @@ export function toUserProfile(user: User): UserProfileResponse {
     phone: user.phone ?? null,
     role: user.role.name,
     status: user.status,
+    emailVerified: user.emailVerifiedAt != null,
     lastLoginAt: user.lastLoginAt ?? null,
     member: member
       ? {

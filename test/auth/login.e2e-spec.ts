@@ -65,12 +65,12 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
 
   describe('successful login, per role', () => {
     it.each([
-      ['admin@libraflow.test', '1', 'admin', null],
-      ['librarian@libraflow.test', '2', 'librarian', null],
-      ['good.student@demo.com', '3', 'member', 'pending_deposit'],
+      ['admin@libraflow.test', '1', 'admin', null, true],
+      ['librarian@libraflow.test', '2', 'librarian', null, true],
+      ['good.student@demo.com', '3', 'member', 'pending_deposit', false],
     ])(
       '%s → 200 with an access token and the user summary',
-      async (email, id, role, membershipStatus) => {
+      async (email, id, role, membershipStatus, emailVerified) => {
         const res = await login(email).expect(200);
         expect(res.body).toEqual({
           accessToken: expect.any(String),
@@ -78,7 +78,14 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
           expiresIn: 900,
           refreshToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
           refreshTokenExpiresAt: expect.any(String),
-          user: { id, email, username: `user${id}`, role, membershipStatus },
+          user: {
+            id,
+            email,
+            username: `user${id}`,
+            role,
+            membershipStatus,
+            emailVerified,
+          },
         });
       },
     );
@@ -258,6 +265,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
         phone: null,
         role: 'member',
         status: 'active',
+        emailVerified: false,
         lastLoginAt: expect.any(String),
         member: {
           id: '30',

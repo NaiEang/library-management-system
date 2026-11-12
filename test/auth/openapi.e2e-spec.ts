@@ -63,6 +63,8 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
     ['/users/{id}/status', 'patch'],
     ['/users/{id}/reset-password', 'post'],
     ['/auth/password', 'patch'],
+    ['/auth/email/send-code', 'post'],
+    ['/auth/email/verify', 'post'],
   ] as const)('%s requires the bearer token', (path, method) => {
     expect(operation(path, method)?.security).toEqual([{ bearer: [] }]);
   });
@@ -107,6 +109,8 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
         .filter((p) => /^\/(auth|users|members)/.test(p))
         .sort(),
     ).toEqual([
+      '/auth/email/send-code',
+      '/auth/email/verify',
       '/auth/login',
       '/auth/logout',
       '/auth/me',
@@ -132,7 +136,15 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
         .filter((p) => p.in === 'query')
         .map((p) => p.name)
         .sort(),
-    ).toEqual(['limit', 'membershipStatus', 'page', 'search']);
+    ).toEqual(['emailVerified', 'limit', 'membershipStatus', 'page', 'search']);
+  });
+
+  it('email/verify documents a 6-digit code as its only field', () => {
+    expect(bodySchema('/auth/email/verify')).toBe(
+      '#/components/schemas/VerifyEmailDto',
+    );
+    expect(Object.keys(schema('VerifyEmailDto').properties)).toEqual(['code']);
+    expect(schema('VerifyEmailDto').required).toEqual(['code']);
   });
 
   it('verify-deposit takes no body', () => {

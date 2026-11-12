@@ -2,6 +2,7 @@ import { getMetadataArgsStorage } from 'typeorm';
 import { Member } from '../../members/entities/member.entity';
 import { Role } from '../../users/entities/role.entity';
 import { User } from '../../users/entities/user.entity';
+import { EmailVerificationCode } from './email-verification-code.entity';
 import { RefreshToken } from './refresh-token.entity';
 
 // Pins the entity definitions to docs/context/erd-changes-auth.md, so a wrong
@@ -42,6 +43,52 @@ describe('Auth & Users schema contract', () => {
       expect(column(User, 'lastLoginAt')).toMatchObject({
         name: 'last_login_at',
         nullable: true,
+      });
+    });
+  });
+
+  it('users: a nullable email_verified_at timestamptz', () => {
+    expect(column(User, 'emailVerifiedAt')).toMatchObject({
+      name: 'email_verified_at',
+      type: 'timestamptz',
+      nullable: true,
+    });
+  });
+
+  describe('email_verification_codes', () => {
+    it('holds one code per user: user_id is the primary key', () => {
+      expect(column(EmailVerificationCode, 'userId')).toMatchObject({
+        name: 'user_id',
+        type: 'bigint',
+        primary: true,
+      });
+    });
+
+    it('stores only a 64-char HMAC hex, never selected by default', () => {
+      expect(column(EmailVerificationCode, 'codeHash')).toMatchObject({
+        name: 'code_hash',
+        type: 'char',
+        length: 64,
+        select: false,
+      });
+    });
+
+    it('counts attempts and sends, and the counts cannot go below their floor', () => {
+      expect(column(EmailVerificationCode, 'attempts')).toMatchObject({
+        default: 0,
+      });
+      expect(column(EmailVerificationCode, 'sendCount')).toMatchObject({
+        name: 'send_count',
+        default: 1,
+      });
+      expect(checks(EmailVerificationCode)).toContain(
+        `"attempts" >= 0 AND "send_count" >= 1`,
+      );
+    });
+
+    it('cascades on user delete', () => {
+      expect(relation(EmailVerificationCode, 'user')?.options).toMatchObject({
+        onDelete: 'CASCADE',
       });
     });
   });

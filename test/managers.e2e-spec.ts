@@ -39,6 +39,8 @@ describe('Manager role (e2e)', () => {
       email: `${username}@test.local`,
       password_hash: hash,
       status: 'active',
+      // Deposits need a verified email (part 4); this file tests roles.
+      email_verified_at: new Date(),
     });
     await insertRows(db, 'users', [
       user(MINE.manager, 4, 'campus.manager'),

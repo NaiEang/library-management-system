@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -31,6 +32,17 @@ export class ListMembersQueryDto {
   @IsOptional()
   @IsEnum(MembershipStatus)
   membershipStatus?: MembershipStatus;
+
+  @ApiPropertyOptional({
+    description: 'true: only verified emails; false: only unverified',
+  })
+  @IsOptional()
+  // Query values arrive as text; anything but "true"/"false" fails IsBoolean.
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  emailVerified?: boolean;
 
   @ApiPropertyOptional({
     description: 'Part of an email, username or member code',

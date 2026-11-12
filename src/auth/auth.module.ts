@@ -13,7 +13,10 @@ import { AuthAuditService } from './audit/auth-audit.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { authConfig } from './config/auth.config';
+import { EmailVerificationCode } from './entities/email-verification-code.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { EmailVerificationService } from './email-verification/email-verification.service';
+import { verificationCodeSenderProvider } from './email-verification/verification-code-sender';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -23,7 +26,7 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
 @Module({
   imports: [
     ConfigModule.forFeature(authConfig),
-    TypeOrmModule.forFeature([RefreshToken, User]),
+    TypeOrmModule.forFeature([RefreshToken, User, EmailVerificationCode]),
     // ThrottlerModule is global; its limits apply only where AuthThrottlerGuard is used.
     ThrottlerModule.forRoot(AUTH_THROTTLE_OPTIONS),
     PassportModule,
@@ -47,6 +50,9 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
     AuthAuditService,
     AccountsService,
     RefreshTokenService,
+    EmailVerificationService,
+    // Development stand-in until Notifications provides the real email sender.
+    verificationCodeSenderProvider,
     JwtStrategy,
     // Global guards run in this order: authentication first, then roles.
     { provide: APP_GUARD, useClass: JwtAuthGuard },

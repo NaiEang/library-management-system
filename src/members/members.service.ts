@@ -25,6 +25,8 @@ export interface MemberListItem {
   firstName: string | null;
   lastName: string | null;
   accountStatus: UserStatus;
+  // The librarian checks this at the desk: no deposit before it's true.
+  emailVerified: boolean;
   membershipStatus: MembershipStatus;
   depositAmount: number;
   depositVerifiedAt: Date | null;
@@ -35,6 +37,9 @@ export interface MemberListPage {
   data: MemberListItem[];
   meta: { page: number; limit: number; total: number };
 }
+
+export const EMAIL_NOT_VERIFIED =
+  "The member's email is not verified yet: ask them to enter the code from their email first";
 
 // Escapes LIKE wildcards, so a search for "50%" or "a_b" matches literally.
 export function escapeLike(text: string): string {
@@ -62,6 +67,13 @@ export class MembersService {
       builder.andWhere('member.membershipStatus = :status', {
         status: query.membershipStatus,
       });
+    }
+    if (query.emailVerified !== undefined) {
+      builder.andWhere(
+        query.emailVerified
+          ? 'user.emailVerifiedAt IS NOT NULL'
+          : 'user.emailVerifiedAt IS NULL',
+      );
     }
     if (query.search) {
       builder.andWhere(
@@ -105,6 +117,11 @@ export class MembersService {
           'The deposit was already verified for this member',
         );
       }
+      // The member proves the email is theirs before paying, so the library
+      // (and Space Booking) can trust it.
+      if (!user.emailVerifiedAt) {
+        throw new ConflictException(EMAIL_NOT_VERIFIED);
+      }
 
       const today = libraryToday(this.config.libraryTimeZone);
       member.depositAmount = this.config.depositAmount;
@@ -146,6 +163,7 @@ function toMemberListItem(member: Member): MemberListItem {
     firstName: member.user.firstName ?? null,
     lastName: member.user.lastName ?? null,
     accountStatus: member.user.status,
+    emailVerified: member.user.emailVerifiedAt != null,
     membershipStatus: member.membershipStatus,
     // Postgres decimals arrive as strings.
     depositAmount: Number(member.depositAmount),

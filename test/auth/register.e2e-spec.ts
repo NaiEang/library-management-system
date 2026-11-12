@@ -4,7 +4,12 @@ import { App } from 'supertest/types';
 import { Member } from '../../src/members/entities/member.entity';
 import { User } from '../../src/users/entities/user.entity';
 import { FakeRepository } from './fixtures/fake-repository';
-import { createTestApp, makeUser, PASSWORD } from './fixtures/test-app';
+import {
+  createTestApp,
+  makeUser,
+  PASSWORD,
+  type TestApp,
+} from './fixtures/test-app';
 
 const newMember = {
   email: '  New.Member@Demo.com ',
@@ -19,6 +24,7 @@ describe('POST /auth/register (e2e)', () => {
   let app: INestApplication<App>;
   let users: FakeRepository<User>;
   let members: FakeRepository<Member>;
+  let sentCodes: TestApp['sentCodes'];
 
   const register = (body: object) =>
     request(app.getHttpServer()).post('/auth/register').send(body);
@@ -31,7 +37,7 @@ describe('POST /auth/register (e2e)', () => {
       email: 'taken@demo.com',
       username: 'takenname',
     });
-    ({ app, users, members } = await createTestApp([existing]));
+    ({ app, users, members, sentCodes } = await createTestApp([existing]));
   });
 
   afterEach(async () => {
@@ -46,11 +52,30 @@ describe('POST /auth/register (e2e)', () => {
       username: 'newmember',
       role: 'member',
       membershipStatus: 'pending_deposit',
+      emailVerified: false,
+      verificationCodeSent: true,
     });
     expect(res.headers['set-cookie']).toBeUndefined();
     expect(JSON.stringify(res.body)).not.toMatch(
       /accessToken|passwordHash|argon2/,
     );
+  });
+
+  it('emails the first verification code to the new address, and never returns it', async () => {
+    const res = await register(newMember).expect(201);
+    expect(sentCodes).toEqual([
+      {
+        userId: res.body.id,
+        email: 'new.member@demo.com',
+        code: expect.stringMatching(/^\d{6}$/),
+      },
+    ]);
+    expect(JSON.stringify(res.body)).not.toContain(sentCodes[0].code);
+  });
+
+  it('a refused sign-up sends no code', async () => {
+    await register({ ...newMember, email: 'taken@demo.com' }).expect(409);
+    expect(sentCodes).toEqual([]);
   });
 
   it('stores a normalized user and a pending_deposit member row with no deposit', async () => {

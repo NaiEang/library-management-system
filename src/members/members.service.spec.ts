@@ -2,7 +2,11 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { AuthConfig } from '../auth/config/auth.config';
 import { Member } from './entities/member.entity';
-import { escapeLike, MembersService } from './members.service';
+import {
+  EMAIL_NOT_VERIFIED,
+  escapeLike,
+  MembersService,
+} from './members.service';
 
 const config = {
   libraryTimeZone: 'Asia/Phnom_Penh',
@@ -26,6 +30,7 @@ const activeUser = {
   email: 'member@demo.test',
   username: 'member',
   status: 'active',
+  emailVerifiedAt: new Date('2026-11-08T09:00:00Z'),
 };
 
 // Plain objects shaped like the rows the database returns.
@@ -78,6 +83,7 @@ describe('MembersService.verifyDeposit', () => {
       userId: '3',
       memberId: '30',
       membershipStatus: 'active',
+      emailVerified: true,
       depositAmount: 5,
       expiryDate: '2027-11-09',
     });
@@ -118,6 +124,17 @@ describe('MembersService.verifyDeposit', () => {
     });
     await expect(service.verifyDeposit('3', '2')).rejects.toThrow(
       'This account is disabled',
+    );
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('an unverified email → 409, nothing written', async () => {
+    const { service, manager } = setup(pendingMember(), {
+      ...activeUser,
+      emailVerifiedAt: null,
+    });
+    await expect(service.verifyDeposit('3', '2')).rejects.toThrow(
+      new ConflictException(EMAIL_NOT_VERIFIED),
     );
     expect(manager.update).not.toHaveBeenCalled();
   });
