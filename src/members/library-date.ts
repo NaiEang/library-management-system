@@ -1,3 +1,5 @@
+import { MembershipTier } from '../common/constants';
+
 // The library's calendar date (YYYY-MM-DD) in its own time zone, so "today"
 // doesn't depend on where the server runs (Supabase and many hosts use UTC).
 export function libraryToday(timeZone: string, now: Date = new Date()): string {
@@ -37,4 +39,18 @@ export function addYears(date: string, years: number): string {
   const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
   const safeDay = month === 2 && day === 29 && !isLeap(target) ? 28 : day;
   return `${String(target).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+}
+
+// The tier shown in responses, from the gold end date alone: gold while
+// gold_until hasn't passed (it counts through that day), otherwise standard.
+// Both are YYYY-MM-DD strings, so string order is date order. This is for
+// display and filters; the access check is MembershipService.isGold(), which
+// also needs the account and membership to be in good standing.
+export function tierOf(
+  goldUntil: string | null,
+  today: string,
+): MembershipTier {
+  return goldUntil !== null && goldUntil >= today
+    ? MembershipTier.GOLD
+    : MembershipTier.STANDARD;
 }

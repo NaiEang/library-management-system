@@ -275,6 +275,8 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
           expiryDate: null,
           depositAmount: 0,
           depositVerifiedAt: null,
+          tier: 'standard',
+          goldUntil: null,
         },
       });
     });

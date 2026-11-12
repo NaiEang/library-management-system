@@ -138,7 +138,14 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
         .filter((p) => p.in === 'query')
         .map((p) => p.name)
         .sort(),
-    ).toEqual(['emailVerified', 'limit', 'membershipStatus', 'page', 'search']);
+    ).toEqual([
+      'emailVerified',
+      'limit',
+      'membershipStatus',
+      'page',
+      'search',
+      'tier',
+    ]);
   });
 
   it('email/verify documents a 6-digit code as its only field', () => {

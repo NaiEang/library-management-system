@@ -110,6 +110,8 @@ describe('Member list and deposit verification (e2e)', () => {
         depositAmount: 0,
         depositVerifiedAt: null,
         expiryDate: null,
+        tier: 'standard',
+        goldUntil: null,
       });
       expect(JSON.stringify(res.body)).not.toMatch(/blocked|password/i);
     });

@@ -10,7 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { MembershipStatus } from '../../common/constants';
+import { MembershipStatus, MembershipTier } from '../../common/constants';
 
 export class ListMembersQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -32,6 +32,15 @@ export class ListMembersQueryDto {
   @IsOptional()
   @IsEnum(MembershipStatus)
   membershipStatus?: MembershipStatus;
+
+  @ApiPropertyOptional({
+    enum: MembershipTier,
+    description:
+      'gold: gold period not ended yet; standard: never gold or gold ended',
+  })
+  @IsOptional()
+  @IsEnum(MembershipTier)
+  tier?: MembershipTier;
 
   @ApiPropertyOptional({
     description: 'true: only verified emails; false: only unverified',

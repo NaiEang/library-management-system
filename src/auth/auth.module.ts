@@ -6,6 +6,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
+import { MembersModule } from '../members/members.module';
 import { UsersModule } from '../users/users.module';
 import { AccountsService } from './accounts/accounts.service';
 import { UserAccountsController } from './accounts/user-accounts.controller';
@@ -17,6 +18,7 @@ import { EmailVerificationCode } from './entities/email-verification-code.entity
 import { RefreshToken } from './entities/refresh-token.entity';
 import { EmailVerificationService } from './email-verification/email-verification.service';
 import { verificationCodeSenderProvider } from './email-verification/verification-code-sender';
+import { GoldMemberGuard } from './guards/gold-member.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -43,6 +45,8 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
       }),
     }),
     UsersModule,
+    // MembershipService, for GoldMemberGuard.
+    MembersModule,
   ],
   controllers: [AuthController, UserAccountsController],
   providers: [
@@ -54,9 +58,11 @@ import { RefreshTokenService } from './tokens/refresh-token.service';
     // Development stand-in until Notifications provides the real email sender.
     verificationCodeSenderProvider,
     JwtStrategy,
-    // Global guards run in this order: authentication first, then roles.
+    // Global guards run in this order: authentication, then roles, then
+    // @GoldMember() (which needs the user the first guard loaded).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: GoldMemberGuard },
   ],
 })
 export class AuthModule {}

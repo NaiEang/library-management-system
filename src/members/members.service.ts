@@ -8,11 +8,15 @@ import type { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { authConfig } from '../auth/config/auth.config';
-import { MembershipStatus, UserStatus } from '../common/constants';
+import {
+  MembershipStatus,
+  MembershipTier,
+  UserStatus,
+} from '../common/constants';
 import { User } from '../users/entities/user.entity';
 import { ListMembersQueryDto } from './dto/list-members-query.dto';
 import { Member } from './entities/member.entity';
-import { addYears, libraryToday } from './library-date';
+import { addYears, libraryToday, tierOf } from './library-date';
 
 // One row of the librarian's member list. blocked_until is deliberately absent:
 // "blocked" belongs to Circulation.
@@ -31,6 +35,11 @@ export interface MemberListItem {
   depositAmount: number;
   depositVerifiedAt: Date | null;
   expiryDate: string | null;
+  // 'gold' while goldUntil hasn't passed, worked out from the date alone (for
+  // display; the access check for gold features is MembershipService.isGold()).
+  tier: MembershipTier;
+  // Last day of the paid gold period (library date); null = never gold.
+  goldUntil: string | null;
 }
 
 export interface MemberListPage {
@@ -56,6 +65,7 @@ export class MembersService {
   ) {}
 
   async list(query: ListMembersQueryDto): Promise<MemberListPage> {
+    const today = libraryToday(this.config.libraryTimeZone);
     const builder = this.members
       .createQueryBuilder('member')
       .innerJoinAndSelect('member.user', 'user')
@@ -75,6 +85,14 @@ export class MembersService {
           : 'user.emailVerifiedAt IS NULL',
       );
     }
+    if (query.tier === MembershipTier.GOLD) {
+      builder.andWhere('member.goldUntil >= :today', { today });
+    } else if (query.tier === MembershipTier.STANDARD) {
+      builder.andWhere(
+        '(member.goldUntil IS NULL OR member.goldUntil < :today)',
+        { today },
+      );
+    }
     if (query.search) {
       builder.andWhere(
         "(user.email ILIKE :search ESCAPE '\\' OR user.username ILIKE :search ESCAPE '\\' OR member.memberCode ILIKE :search ESCAPE '\\')",
@@ -84,7 +102,7 @@ export class MembersService {
 
     const [rows, total] = await builder.getManyAndCount();
     return {
-      data: rows.map(toMemberListItem),
+      data: rows.map((row) => toMemberListItem(row, today)),
       meta: { page: query.page, limit: query.limit, total },
     };
   }
@@ -148,12 +166,12 @@ export class MembersService {
       }
 
       member.user = user;
-      return toMemberListItem(member);
+      return toMemberListItem(member, today);
     });
   }
 }
 
-function toMemberListItem(member: Member): MemberListItem {
+function toMemberListItem(member: Member, today: string): MemberListItem {
   return {
     userId: member.user.id,
     memberId: member.id,
@@ -169,5 +187,7 @@ function toMemberListItem(member: Member): MemberListItem {
     depositAmount: Number(member.depositAmount),
     depositVerifiedAt: member.depositVerifiedAt ?? null,
     expiryDate: member.expiryDate ?? null,
+    tier: tierOf(member.goldUntil ?? null, today),
+    goldUntil: member.goldUntil ?? null,
   };
 }

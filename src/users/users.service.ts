@@ -236,7 +236,9 @@ export class UsersService {
       where: { id },
       relations: { role: true, member: true },
     });
-    return user ? toUserProfile(user) : null;
+    return user
+      ? toUserProfile(user, libraryToday(this.config.libraryTimeZone))
+      : null;
   }
 
   // Creates the MEMBER user and its pending_deposit member row in ONE

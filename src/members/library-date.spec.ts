@@ -3,6 +3,7 @@ import {
   addYears,
   isValidTimeZone,
   libraryToday,
+  tierOf,
 } from './library-date';
 
 describe('libraryToday', () => {
@@ -67,5 +68,16 @@ describe('addDays', () => {
     ['2026-03-01', -1, '2026-02-28'],
   ])('%s + %i days = %s', (date, days, expected) => {
     expect(addDays(date, days)).toBe(expected);
+  });
+});
+
+describe('tierOf', () => {
+  it.each([
+    ['2026-11-13', 'gold'],
+    ['2026-11-12', 'gold'],
+    ['2026-11-11', 'standard'],
+    [null, 'standard'],
+  ])('gold_until %s on 2026-11-12 → %s', (goldUntil, tier) => {
+    expect(tierOf(goldUntil, '2026-11-12')).toBe(tier);
   });
 });
