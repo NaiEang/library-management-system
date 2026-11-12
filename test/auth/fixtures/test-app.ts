@@ -10,6 +10,7 @@ import { RefreshToken } from '../../../src/auth/entities/refresh-token.entity';
 import { VERIFICATION_CODE_SENDER } from '../../../src/auth/email-verification/verification-code-sender';
 import { PasswordService } from '../../../src/auth/password/password.service';
 import { Member } from '../../../src/members/entities/member.entity';
+import { Payment } from '../../../src/payments/entities/payment.entity';
 import { Role } from '../../../src/users/entities/role.entity';
 import { User } from '../../../src/users/entities/user.entity';
 import { FakeEntityManager, FakeRepository } from './fake-repository';
@@ -158,6 +159,8 @@ export async function createTestApp(
     .useValue(memberRepository)
     .overrideProvider(getRepositoryToken(RefreshToken))
     .useValue(refreshTokenRepository)
+    .overrideProvider(getRepositoryToken(Payment))
+    .useValue(new FakeRepository<Payment>())
     .overrideProvider(getRepositoryToken(EmailVerificationCode))
     .useValue(codeRepository)
     .overrideProvider(VERIFICATION_CODE_SENDER)

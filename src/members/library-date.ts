@@ -21,6 +21,14 @@ export function isValidTimeZone(timeZone: string): boolean {
   }
 }
 
+// Adds whole days to a YYYY-MM-DD date (calendar arithmetic, no time zone).
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days))
+    .toISOString()
+    .slice(0, 10);
+}
+
 // Adds whole years to a YYYY-MM-DD date. Feb 29 becomes Feb 28 in a non-leap
 // year, so a membership never ends in the following month.
 export function addYears(date: string, years: number): string {

@@ -200,6 +200,17 @@ describe('Auth & Users schema contract', () => {
       });
     });
 
+    it('has a nullable gold_until date, after the membership date', () => {
+      expect(column(Member, 'goldUntil')).toMatchObject({
+        name: 'gold_until',
+        type: 'date',
+        nullable: true,
+      });
+      expect(checks(Member)).toContain(
+        `"gold_until" IS NULL OR "gold_until" > "membership_date"`,
+      );
+    });
+
     it('has a nullable blocked_until timestamptz for Circulation', () => {
       expect(column(Member, 'blockedUntil')).toMatchObject({
         name: 'blocked_until',

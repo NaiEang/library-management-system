@@ -1,4 +1,9 @@
-import { addYears, isValidTimeZone, libraryToday } from './library-date';
+import {
+  addDays,
+  addYears,
+  isValidTimeZone,
+  libraryToday,
+} from './library-date';
 
 describe('libraryToday', () => {
   const PHNOM_PENH = 'Asia/Phnom_Penh'; // UTC+7, no daylight saving
@@ -50,5 +55,17 @@ describe('addYears', () => {
 
   it('keeps Feb 29 when the target year is a leap year', () => {
     expect(addYears('2024-02-29', 4)).toBe('2028-02-29');
+  });
+});
+
+describe('addDays', () => {
+  it.each([
+    ['2026-11-12', 30, '2026-12-12'],
+    ['2026-12-31', 1, '2027-01-01'],
+    ['2028-02-28', 1, '2028-02-29'],
+    ['2027-02-28', 1, '2027-03-01'],
+    ['2026-03-01', -1, '2026-02-28'],
+  ])('%s + %i days = %s', (date, days, expected) => {
+    expect(addDays(date, days)).toBe(expected);
   });
 });

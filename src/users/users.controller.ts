@@ -7,6 +7,11 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { BuyGoldDto } from '../members/dto/buy-gold.dto';
+import {
+  GoldMembershipResponse,
+  GoldMembershipService,
+} from '../members/gold-membership.service';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -29,6 +34,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly membersService: MembersService,
+    private readonly goldMembership: GoldMembershipService,
   ) {}
 
   // Managers and admins create librarians; nobody can self-register as staff.
@@ -63,5 +69,18 @@ export class UsersController {
     @CurrentUser('id') staffId: string,
   ): Promise<MemberListItem> {
     return this.membersService.verifyDeposit(userId, staffId);
+  }
+
+  // The member paid the yearly gold fee at the desk: upgrades a standard
+  // member, or renews gold (only in its last 30 days). Records the payment.
+  // POST, not PATCH: every successful call charges the fee once.
+  @Roles(RoleName.LIBRARIAN)
+  @LogActivity({ action: 'GOLD_MEMBERSHIP', entityType: 'User' })
+  @Post(':id/gold-membership')
+  buyGold(
+    @Param('id', IdParamPipe) userId: string,
+    @Body() dto: BuyGoldDto,
+  ): Promise<GoldMembershipResponse> {
+    return this.goldMembership.buyGold(userId, dto.paymentMethod);
   }
 }
