@@ -3,12 +3,14 @@ import { BookCopy } from '../books/entities/book-copy.entity';
 import { Author } from '../books/entities/author.entity';
 import { Book } from '../books/entities/book.entity';
 import { Category } from '../books/entities/category.entity';
+import { EmailVerificationCode } from '../auth/entities/email-verification-code.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
 import { ActivityLog } from '../dashboard/entities/activity-log.entity';
 import { LoanItem } from '../loans/entities/loan-item.entity';
 import { Loan } from '../loans/entities/loan.entity';
 import { Member } from '../members/entities/member.entity';
 import { Notification } from '../notifications/entities/notification.entity';
+import { TelegramLink } from '../notifications/entities/telegram-link.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Role } from '../users/entities/role.entity';
 import { User } from '../users/entities/user.entity';
@@ -29,4 +31,6 @@ export const ENTITIES = [
   Notification,
   ActivityLog,
   RefreshToken,
+  EmailVerificationCode,
+  TelegramLink,
 ];

@@ -29,7 +29,11 @@ import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { EmailVerificationService } from './email-verification/email-verification.service';
 import {
+  EMAIL_CODE_SEND_THROTTLE,
+  EMAIL_CODE_VERIFY_THROTTLE,
   PASSWORD_CHANGE_THROTTLE,
   REGISTER_THROTTLE,
 } from './throttling/auth-throttle';
@@ -41,6 +45,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly emailVerification: EmailVerificationService,
   ) {}
 
   // Creates a MEMBER (membership pending_deposit). No tokens: the user logs
@@ -107,6 +112,34 @@ export class AuthController {
       throw new UnauthorizedException();
     }
     return profile;
+  }
+
+  // Emails a new 6-digit code (valid 15 minutes) to the logged-in user. The
+  // previous code stops working. 409 if the email is already verified, 429
+  // within a minute of the last code or after 10 codes in a day.
+  @ApiBearerAuth()
+  @UseGuards(AuthThrottlerGuard)
+  @SkipThrottle({ email: true })
+  @Throttle(EMAIL_CODE_SEND_THROTTLE)
+  @Post('email/send-code')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  sendEmailCode(@CurrentUser('id') userId: string): Promise<void> {
+    return this.emailVerification.sendCode(userId);
+  }
+
+  // Marks the logged-in user's email as verified. 5 wrong codes and that code
+  // stops working: request a new one.
+  @ApiBearerAuth()
+  @UseGuards(AuthThrottlerGuard)
+  @SkipThrottle({ email: true })
+  @Throttle(EMAIL_CODE_VERIFY_THROTTLE)
+  @Post('email/verify')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  verifyEmail(
+    @CurrentUser('id') userId: string,
+    @Body() dto: VerifyEmailDto,
+  ): Promise<void> {
+    return this.emailVerification.verify(userId, dto.code);
   }
 
   // Ends all of this user's sessions: log in again with the new password.

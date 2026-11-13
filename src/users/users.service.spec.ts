@@ -156,6 +156,8 @@ describe('UsersService.registerMember', () => {
       lastName: undefined,
       phone: undefined,
       status: 'active',
+      // Members verify their email themselves, with a code.
+      emailVerifiedAt: null,
     });
     expect(inserted(Member)).toEqual({
       userId: '41',
@@ -306,6 +308,8 @@ describe('UsersService.createStaff', () => {
       roleId: 2,
       passwordHash: '$argon2id$hashed',
       status: 'active',
+      // Created by an admin or manager: counts as verified.
+      emailVerifiedAt: expect.any(Date),
     });
     expect(manager.insert).toHaveBeenCalledTimes(1);
     expect(manager.insert).not.toHaveBeenCalledWith(Member, expect.anything());

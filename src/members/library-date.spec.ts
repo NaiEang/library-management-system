@@ -1,4 +1,12 @@
-import { addYears, isValidTimeZone, libraryToday } from './library-date';
+import {
+  addDays,
+  addYears,
+  daysBetween,
+  formatLibraryDate,
+  isValidTimeZone,
+  libraryToday,
+  tierOf,
+} from './library-date';
 
 describe('libraryToday', () => {
   const PHNOM_PENH = 'Asia/Phnom_Penh'; // UTC+7, no daylight saving
@@ -50,5 +58,46 @@ describe('addYears', () => {
 
   it('keeps Feb 29 when the target year is a leap year', () => {
     expect(addYears('2024-02-29', 4)).toBe('2028-02-29');
+  });
+});
+
+describe('addDays', () => {
+  it.each([
+    ['2026-11-12', 30, '2026-12-12'],
+    ['2026-12-31', 1, '2027-01-01'],
+    ['2028-02-28', 1, '2028-02-29'],
+    ['2027-02-28', 1, '2027-03-01'],
+    ['2026-03-01', -1, '2026-02-28'],
+  ])('%s + %i days = %s', (date, days, expected) => {
+    expect(addDays(date, days)).toBe(expected);
+  });
+});
+
+describe('tierOf', () => {
+  it.each([
+    ['2026-11-13', 'gold'],
+    ['2026-11-12', 'gold'],
+    ['2026-11-11', 'standard'],
+    [null, 'standard'],
+  ])('gold_until %s on 2026-11-12 → %s', (goldUntil, tier) => {
+    expect(tierOf(goldUntil, '2026-11-12')).toBe(tier);
+  });
+});
+
+describe('formatLibraryDate', () => {
+  it('formats in the library calendar, not the server one', () => {
+    // 2026-11-12 23:30 UTC is already Friday the 13th in Phnom Penh
+    expect(
+      formatLibraryDate('Asia/Phnom_Penh', new Date('2026-11-12T23:30:00Z')),
+    ).toBe('Fri, 13 Nov 2026');
+  });
+});
+
+describe('daysBetween', () => {
+  it('counts whole calendar days, across months and years', () => {
+    expect(daysBetween('2026-11-09', '2026-11-12')).toBe(3);
+    expect(daysBetween('2026-12-31', '2027-01-01')).toBe(1);
+    expect(daysBetween('2026-11-12', '2026-11-12')).toBe(0);
+    expect(daysBetween('2026-11-12', '2026-11-09')).toBe(-3);
   });
 });

@@ -8,11 +8,15 @@ import type { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { authConfig } from '../auth/config/auth.config';
-import { MembershipStatus, UserStatus } from '../common/constants';
+import {
+  MembershipStatus,
+  MembershipTier,
+  UserStatus,
+} from '../common/constants';
 import { User } from '../users/entities/user.entity';
 import { ListMembersQueryDto } from './dto/list-members-query.dto';
 import { Member } from './entities/member.entity';
-import { addYears, libraryToday } from './library-date';
+import { addYears, libraryToday, tierOf } from './library-date';
 
 // One row of the librarian's member list. blocked_until is deliberately absent:
 // "blocked" belongs to Circulation.
@@ -25,16 +29,26 @@ export interface MemberListItem {
   firstName: string | null;
   lastName: string | null;
   accountStatus: UserStatus;
+  // The librarian checks this at the desk: no deposit before it's true.
+  emailVerified: boolean;
   membershipStatus: MembershipStatus;
   depositAmount: number;
   depositVerifiedAt: Date | null;
   expiryDate: string | null;
+  // 'gold' while goldUntil hasn't passed, worked out from the date alone (for
+  // display; the access check for gold features is MembershipService.isGold()).
+  tier: MembershipTier;
+  // Last day of the paid gold period (library date); null = never gold.
+  goldUntil: string | null;
 }
 
 export interface MemberListPage {
   data: MemberListItem[];
   meta: { page: number; limit: number; total: number };
 }
+
+export const EMAIL_NOT_VERIFIED =
+  "The member's email is not verified yet: ask them to enter the code from their email first";
 
 // Escapes LIKE wildcards, so a search for "50%" or "a_b" matches literally.
 export function escapeLike(text: string): string {
@@ -51,6 +65,7 @@ export class MembersService {
   ) {}
 
   async list(query: ListMembersQueryDto): Promise<MemberListPage> {
+    const today = libraryToday(this.config.libraryTimeZone);
     const builder = this.members
       .createQueryBuilder('member')
       .innerJoinAndSelect('member.user', 'user')
@@ -63,6 +78,21 @@ export class MembersService {
         status: query.membershipStatus,
       });
     }
+    if (query.emailVerified !== undefined) {
+      builder.andWhere(
+        query.emailVerified
+          ? 'user.emailVerifiedAt IS NOT NULL'
+          : 'user.emailVerifiedAt IS NULL',
+      );
+    }
+    if (query.tier === MembershipTier.GOLD) {
+      builder.andWhere('member.goldUntil >= :today', { today });
+    } else if (query.tier === MembershipTier.STANDARD) {
+      builder.andWhere(
+        '(member.goldUntil IS NULL OR member.goldUntil < :today)',
+        { today },
+      );
+    }
     if (query.search) {
       builder.andWhere(
         "(user.email ILIKE :search ESCAPE '\\' OR user.username ILIKE :search ESCAPE '\\' OR member.memberCode ILIKE :search ESCAPE '\\')",
@@ -72,7 +102,7 @@ export class MembersService {
 
     const [rows, total] = await builder.getManyAndCount();
     return {
-      data: rows.map(toMemberListItem),
+      data: rows.map((row) => toMemberListItem(row, today)),
       meta: { page: query.page, limit: query.limit, total },
     };
   }
@@ -105,6 +135,11 @@ export class MembersService {
           'The deposit was already verified for this member',
         );
       }
+      // The member proves the email is theirs before paying, so the library
+      // (and Space Booking) can trust it.
+      if (!user.emailVerifiedAt) {
+        throw new ConflictException(EMAIL_NOT_VERIFIED);
+      }
 
       const today = libraryToday(this.config.libraryTimeZone);
       member.depositAmount = this.config.depositAmount;
@@ -131,12 +166,12 @@ export class MembersService {
       }
 
       member.user = user;
-      return toMemberListItem(member);
+      return toMemberListItem(member, today);
     });
   }
 }
 
-function toMemberListItem(member: Member): MemberListItem {
+function toMemberListItem(member: Member, today: string): MemberListItem {
   return {
     userId: member.user.id,
     memberId: member.id,
@@ -146,10 +181,13 @@ function toMemberListItem(member: Member): MemberListItem {
     firstName: member.user.firstName ?? null,
     lastName: member.user.lastName ?? null,
     accountStatus: member.user.status,
+    emailVerified: member.user.emailVerifiedAt != null,
     membershipStatus: member.membershipStatus,
     // Postgres decimals arrive as strings.
     depositAmount: Number(member.depositAmount),
     depositVerifiedAt: member.depositVerifiedAt ?? null,
     expiryDate: member.expiryDate ?? null,
+    tier: tierOf(member.goldUntil ?? null, today),
+    goldUntil: member.goldUntil ?? null,
   };
 }

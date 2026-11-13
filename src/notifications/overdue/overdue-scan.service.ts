@@ -5,24 +5,30 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Queue } from 'bullmq';
 import { CronJob } from 'cron';
-import { IsNull, LessThan, Repository } from 'typeorm';
+import { Between, IsNull, LessThan, Repository } from 'typeorm';
 import { LoanItemStatus } from '../../common/constants';
 import { withSpan } from '../../common/observability/with-span';
 import { LoanItem } from '../../loans/entities/loan-item.entity';
-import { libraryToday } from '../../members/library-date';
+import { addDays, libraryToday } from '../../members/library-date';
 import {
   DEFAULT_OVERDUE_SCAN_CRON,
   OVERDUE_JOB,
   OVERDUE_QUEUE,
   type OverdueJobData,
+  type ReminderKind,
 } from './overdue.constants';
 
 export interface OverdueScanResult {
   // Items moved from borrowed to overdue by this run
   marked: number;
-  // Jobs handed to the queue (one per unreturned overdue item)
+  // Reminders handed to the queue (the three counts below together)
   queued: number;
+  overdue: number;
+  dueToday: number;
+  dueTomorrow: number;
 }
+
+const DAY_MS = 24 * 3600 * 1000;
 
 @Injectable()
 export class OverdueScanService implements OnModuleInit {
@@ -53,7 +59,10 @@ export class OverdueScanService implements OnModuleInit {
       timeZone: this.timeZone,
       onTick: () => {
         this.scan().catch((error: Error) =>
-          this.logger.error(`overdue scan failed: ${error.message}`, error.stack),
+          this.logger.error(
+            `overdue scan failed: ${error.message}`,
+            error.stack,
+          ),
         );
       },
     });
@@ -82,26 +91,58 @@ export class OverdueScanService implements OnModuleInit {
         order: { id: 'ASC' },
       });
 
-      // One reminder per item per library day: the job id makes a second
-      // scan on the same day (manual trigger, restart) a no-op in BullMQ
-      const day = libraryToday(this.timeZone, now);
-      await this.queue.addBulk(
-        overdue.map((item) => ({
-          name: OVERDUE_JOB,
-          data: { loanItemId: item.id },
-          opts: {
-            jobId: `overdue-${item.id}-${day}`,
-            attempts: 5,
-            backoff: { type: 'exponential', delay: 30_000 },
-            removeOnComplete: { age: 7 * 24 * 3600 },
-            removeOnFail: { age: 30 * 24 * 3600 },
-          },
-        })),
-      );
+      // Still borrowed and due today or tomorrow (library calendar). Every
+      // due date in those two days is less than 48 hours away.
+      const today = libraryToday(this.timeZone, now);
+      const tomorrow = addDays(today, 1);
+      const upcoming = await this.loanItems.find({
+        select: { id: true, dueDate: true },
+        where: {
+          status: LoanItemStatus.BORROWED,
+          returnedAt: IsNull(),
+          dueDate: Between(now, new Date(now.getTime() + 2 * DAY_MS)),
+        },
+        order: { id: 'ASC' },
+      });
+      const dueOn = (day: string) =>
+        upcoming.filter(
+          (item) => libraryToday(this.timeZone, item.dueDate!) === day,
+        );
+      const dueToday = dueOn(today);
+      const dueTomorrow = dueOn(tomorrow);
 
-      const result = { marked: marked.affected ?? 0, queued: overdue.length };
+      // One reminder of each kind per item per library day: the job id makes
+      // a second scan on the same day (manual trigger, restart) a no-op
+      const job = (kind: ReminderKind, item: { id: string }) => ({
+        name: OVERDUE_JOB,
+        data:
+          kind === 'overdue'
+            ? { loanItemId: item.id }
+            : { loanItemId: item.id, kind },
+        opts: {
+          jobId: `${kind}-${item.id}-${today}`,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 30_000 },
+          removeOnComplete: { age: 7 * 24 * 3600 },
+          removeOnFail: { age: 30 * 24 * 3600 },
+        },
+      });
+      await this.queue.addBulk([
+        ...overdue.map((item) => job('overdue', item)),
+        ...dueToday.map((item) => job('due-today', item)),
+        ...dueTomorrow.map((item) => job('due-tomorrow', item)),
+      ]);
+
+      const result = {
+        marked: marked.affected ?? 0,
+        queued: overdue.length + dueToday.length + dueTomorrow.length,
+        overdue: overdue.length,
+        dueToday: dueToday.length,
+        dueTomorrow: dueTomorrow.length,
+      };
       this.logger.log(
-        `marked ${result.marked} item(s) overdue, queued ${result.queued} reminder(s)`,
+        `marked ${result.marked} item(s) overdue; queued ${result.overdue} overdue, ` +
+          `${result.dueToday} due-today and ${result.dueTomorrow} due-tomorrow reminder(s)`,
       );
       return result;
     });

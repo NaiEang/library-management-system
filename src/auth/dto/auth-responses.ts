@@ -19,6 +19,8 @@ export interface LoginResponse extends TokenResponse {
     role: RoleName;
     // null for staff, who have no member row.
     membershipStatus: string | null;
+    // false until a member enters the code from their email; staff are true.
+    emailVerified: boolean;
   };
 }
 
@@ -28,4 +30,8 @@ export interface RegisterResponse {
   username: string;
   role: RoleName.MEMBER;
   membershipStatus: MembershipStatus.PENDING_DEPOSIT;
+  emailVerified: false;
+  // Whether the first code went out. If false, log in and call
+  // POST /auth/email/send-code.
+  verificationCodeSent: boolean;
 }

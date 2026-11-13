@@ -27,6 +27,13 @@ export enum MembershipStatus {
   EXPIRED = 'expired',
 }
 
+// Gold is a paid yearly tier on top of an active membership, not a role.
+// It's derived from members.gold_until: gold while that date hasn't passed.
+export enum MembershipTier {
+  STANDARD = 'standard',
+  GOLD = 'gold',
+}
+
 export enum CopyCondition {
   NEW = 'new',
   GOOD = 'good',

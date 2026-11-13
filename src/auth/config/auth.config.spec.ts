@@ -17,6 +17,7 @@ describe('validateAuthEnv', () => {
       refreshAbsoluteTtlStaffSeconds: 12 * 3600,
       frontendOrigin: 'http://localhost:5173',
       depositAmount: 5,
+      goldMembershipFee: 5,
       libraryTimeZone: 'Asia/Phnom_Penh',
       memberEmailDomains: [],
     });
@@ -105,6 +106,22 @@ describe('validateAuthEnv', () => {
       validateAuthEnv({ ...baseEnv, DEPOSIT_AMOUNT: amount }),
     ).toThrow(/DEPOSIT_AMOUNT/);
   });
+
+  it('reads GOLD_MEMBERSHIP_FEE', () => {
+    expect(
+      validateAuthEnv({ ...baseEnv, GOLD_MEMBERSHIP_FEE: '6.50' })
+        .goldMembershipFee,
+    ).toBe(6.5);
+  });
+
+  it.each(['0', '-5', 'five', '5.001'])(
+    'rejects GOLD_MEMBERSHIP_FEE %s',
+    (fee) => {
+      expect(() =>
+        validateAuthEnv({ ...baseEnv, GOLD_MEMBERSHIP_FEE: fee }),
+      ).toThrow(/GOLD_MEMBERSHIP_FEE/);
+    },
+  );
 
   it('accepts another IANA time zone', () => {
     expect(

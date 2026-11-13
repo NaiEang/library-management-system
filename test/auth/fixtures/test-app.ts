@@ -5,9 +5,12 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { randomBytes } from 'node:crypto';
 import { App } from 'supertest/types';
 import { AuthModule } from '../../../src/auth/auth.module';
+import { EmailVerificationCode } from '../../../src/auth/entities/email-verification-code.entity';
 import { RefreshToken } from '../../../src/auth/entities/refresh-token.entity';
+import { EmailNotifier } from '../../../src/notifications/channels/email-notifier';
 import { PasswordService } from '../../../src/auth/password/password.service';
 import { Member } from '../../../src/members/entities/member.entity';
+import { Payment } from '../../../src/payments/entities/payment.entity';
 import { Role } from '../../../src/users/entities/role.entity';
 import { User } from '../../../src/users/entities/user.entity';
 import { FakeEntityManager, FakeRepository } from './fake-repository';
@@ -60,6 +63,7 @@ export async function makeUser(input: FakeUserInput): Promise<User> {
     phone: null,
     status: input.status ?? 'active',
     lastLoginAt: null,
+    emailVerifiedAt: input.role === 'member' ? null : new Date('2026-11-01'),
     role: { id: ROLE_IDS[input.role] ?? 99, name: input.role },
     member: memberId
       ? {
@@ -82,6 +86,8 @@ export interface TestApp {
   users: FakeRepository<User>;
   members: FakeRepository<Member>;
   refreshTokens: FakeRepository<RefreshToken>;
+  // Codes the app "emailed": what the user would find in their inbox.
+  sentCodes: { userId: string; email: string; code: string }[];
 }
 
 // The roles the migration guarantees.
@@ -104,6 +110,21 @@ export async function createTestApp(
   const roleRepository = new FakeRepository<Role>(structuredClone(ROLES));
   const memberRepository = new FakeRepository<Member>();
   const refreshTokenRepository = new FakeRepository<RefreshToken>();
+  // The code store uses one SQL statement; here it always accepts the code.
+  // The real limits are tested against Postgres (test/email-verification.e2e-spec.ts).
+  const codeRepository = Object.assign(
+    new FakeRepository<EmailVerificationCode>(),
+    { query: vi.fn(() => Promise.resolve([{ user_id: 'stored' }])) },
+  );
+  const sentCodes: TestApp['sentCodes'] = [];
+  const sender = {
+    sendVerificationCode: vi.fn(
+      (to: { userId: string; email: string }, code: string) => {
+        sentCodes.push({ userId: to.userId, email: to.email, code });
+        return Promise.resolve();
+      },
+    ),
+  };
   // What a database join would return for newly inserted rows.
   userRepository.onInsert = (user) => {
     user.role = roleRepository.rows.find((role) => role.id === user.roleId)!;
@@ -138,6 +159,12 @@ export async function createTestApp(
     .useValue(memberRepository)
     .overrideProvider(getRepositoryToken(RefreshToken))
     .useValue(refreshTokenRepository)
+    .overrideProvider(getRepositoryToken(Payment))
+    .useValue(new FakeRepository<Payment>())
+    .overrideProvider(getRepositoryToken(EmailVerificationCode))
+    .useValue(codeRepository)
+    .overrideProvider(EmailNotifier)
+    .useValue(sender)
     .compile();
 
   const app = moduleRef.createNestApplication<INestApplication<App>>({
@@ -151,5 +178,6 @@ export async function createTestApp(
     users: userRepository,
     members: memberRepository,
     refreshTokens: refreshTokenRepository,
+    sentCodes,
   };
 }

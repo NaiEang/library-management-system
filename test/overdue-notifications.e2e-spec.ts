@@ -35,8 +35,15 @@ describe('Overdue reminders (e2e)', () => {
       .post('/notifications/overdue/scan')
       .set(as(USERS.librarian))
       .expect(200);
-    // Fixtures: item 2 is already overdue; the borrowed items are not due yet
-    expect(res.body).toEqual({ marked: 0, queued: 1 });
+    // Fixtures: item 2 is already overdue, item 6 is due tomorrow, item 1
+    // is due in 9 days
+    expect(res.body).toEqual({
+      marked: 0,
+      queued: 2,
+      overdue: 1,
+      dueToday: 0,
+      dueTomorrow: 1,
+    });
 
     const db = app.get(DataSource);
     const rows = await vi.waitFor(
@@ -51,7 +58,25 @@ describe('Overdue reminders (e2e)', () => {
     );
     expect(rows).toHaveLength(1);
     expect(String(rows[0].user_id)).toBe(String(USERS.member));
-    expect(rows[0].message).toMatch(/is overdue\. You are blocked until you return it\.$/);
+    expect(rows[0].message).toMatch(/ was due on .+ and is now \d+ days? overdue\./);
+    expect(rows[0].message).toMatch(/You can't borrow other books until it is returned/);
+  });
+
+  it('reminds the borrower the day before the due date', async () => {
+    const rows = await vi.waitFor(
+      async () => {
+        const found = await app
+          .get(DataSource)
+          .query<{ user_id: string; message: string }[]>(
+            `SELECT user_id, message FROM notifications WHERE type = 'LOAN_DUE_SOON'`,
+          );
+        if (found.length === 0) throw new Error('not processed yet');
+        return found;
+      },
+      { timeout: 10_000, interval: 200 },
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].message).toMatch(/^Friendly reminder: ".+" is due back tomorrow, \w{3}, \d{1,2} \w{3} \d{4}\./);
   });
 
   it('does not remind twice on the same day', async () => {
@@ -64,8 +89,8 @@ describe('Overdue reminders (e2e)', () => {
     const [{ count }] = await app
       .get(DataSource)
       .query<{ count: number }[]>(
-        `SELECT COUNT(*)::int AS count FROM notifications WHERE type = 'LOAN_OVERDUE'`,
+        `SELECT COUNT(*)::int AS count FROM notifications WHERE type IN ('LOAN_OVERDUE', 'LOAN_DUE_SOON')`,
       );
-    expect(count).toBe(1);
+    expect(count).toBe(2);
   });
 });

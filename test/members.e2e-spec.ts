@@ -15,6 +15,7 @@ const MINE = {
   percent: 9003,
   fiveHundred: 9004,
   race: 9005,
+  unverified: 9006,
 };
 
 describe('Member list and deposit verification (e2e)', () => {
@@ -26,13 +27,19 @@ describe('Member list and deposit verification (e2e)', () => {
   beforeAll(async () => {
     app = await createTestApp();
     db = app.get(DataSource);
-    const user = (id: number, username: string, status = 'active') => ({
+    const user = (
+      id: number,
+      username: string,
+      status = 'active',
+      emailVerified = true,
+    ) => ({
       id,
       role_id: 3,
       username,
       email: `${username}@test.local`,
       password_hash: '!test',
       status,
+      email_verified_at: emailVerified ? new Date() : null,
     });
     await insertRows(db, 'users', [
       user(MINE.verify, 'verify.me'),
@@ -40,6 +47,7 @@ describe('Member list and deposit verification (e2e)', () => {
       user(MINE.percent, 'percent.member'),
       user(MINE.fiveHundred, 'five.hundred'),
       user(MINE.race, 'race.member'),
+      user(MINE.unverified, 'unverified.member', 'active', false),
     ]);
     const member = (userId: number, code: string) => ({
       id: userId,
@@ -56,6 +64,7 @@ describe('Member list and deposit verification (e2e)', () => {
       member(MINE.percent, 'LF-50%-X'),
       member(MINE.fiveHundred, 'LF-500-Y'),
       member(MINE.race, 'LF-TEST-9005'),
+      member(MINE.unverified, 'LF-TEST-9006'),
     ]);
   });
 
@@ -96,10 +105,13 @@ describe('Member list and deposit verification (e2e)', () => {
         firstName: null,
         lastName: null,
         accountStatus: 'active',
+        emailVerified: true,
         membershipStatus: 'pending_deposit',
         depositAmount: 0,
         depositVerifiedAt: null,
         expiryDate: null,
+        tier: 'standard',
+        goldUntil: null,
       });
       expect(JSON.stringify(res.body)).not.toMatch(/blocked|password/i);
     });
@@ -114,6 +126,29 @@ describe('Member list and deposit verification (e2e)', () => {
       expect(
         rows.every((row) => row.membershipStatus === 'pending_deposit'),
       ).toBe(true);
+    });
+
+    it('shows the librarian whether the email is verified, and filters by it', async () => {
+      const unverified = await request(server())
+        .get('/users/members?emailVerified=false&limit=100')
+        .set(as(USERS.librarian))
+        .expect(200);
+      const rows = unverified.body.data as {
+        userId: string;
+        emailVerified: boolean;
+      }[];
+      expect(rows.map((row) => row.userId)).toContain(String(MINE.unverified));
+      expect(rows.every((row) => row.emailVerified === false)).toBe(true);
+
+      const verified = await request(server())
+        .get('/users/members?emailVerified=true&limit=100')
+        .set(as(USERS.librarian))
+        .expect(200);
+      const verifiedIds = (verified.body.data as typeof rows).map(
+        (row) => row.userId,
+      );
+      expect(verifiedIds).toContain(String(MINE.verify));
+      expect(verifiedIds).not.toContain(String(MINE.unverified));
     });
 
     it('pages: limit 2 gives 2 rows and the full total', async () => {
@@ -145,6 +180,7 @@ describe('Member list and deposit verification (e2e)', () => {
       'limit=101',
       'limit=abc',
       'membershipStatus=blocked',
+      'emailVerified=maybe',
       `search=${'x'.repeat(101)}`,
     ])('rejects %s with 400', async (query) => {
       await request(server())
@@ -223,6 +259,19 @@ describe('Member list and deposit verification (e2e)', () => {
     it('verifying twice → 409', async () => {
       const res = await verify(MINE.verify, USERS.admin).expect(409);
       expect(res.body.message).toMatch(/already verified/);
+    });
+
+    it('an unverified email → 409 with the reason, and stays pending', async () => {
+      const res = await verify(MINE.unverified, USERS.librarian).expect(409);
+      expect(res.body.message).toMatch(/email is not verified/);
+      const [row] = await db.query(
+        `SELECT membership_status, deposit_verified_by FROM members WHERE user_id = $1`,
+        [MINE.unverified],
+      );
+      expect(row).toEqual({
+        membership_status: 'pending_deposit',
+        deposit_verified_by: null,
+      });
     });
 
     it('a disabled account → 409, and stays pending', async () => {

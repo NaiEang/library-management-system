@@ -1,28 +1,49 @@
 import type { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmailNotifier } from './email-notifier';
+import { emailConfigFrom } from './email.config';
 import { LogNotifier } from './log-notifier';
-import { NOTIFIER, type Notifier } from './notifier';
+import { NOTIFIERS, type Notifier } from './notifier';
+import { TelegramNotifier } from './telegram-notifier';
+import { telegramConfigFrom } from './telegram.config';
 
-// Email once SMTP_HOST is set; otherwise messages only go to the log
-export function createNotifier(config: ConfigService): Notifier {
-  const host = config.get<string>('SMTP_HOST');
-  if (!host) return new LogNotifier();
-
-  const port = Number(config.get<string>('SMTP_PORT') ?? 587);
-  return new EmailNotifier({
-    host,
-    port,
-    // Port 465 is implicit TLS; 587 upgrades with STARTTLS
-    secure: (config.get<string>('SMTP_SECURE') ?? String(port === 465)) === 'true',
-    user: config.get<string>('SMTP_USER') || undefined,
-    pass: config.get<string>('SMTP_PASS') || undefined,
-    from: config.get<string>('SMTP_FROM') ?? 'LibraFlow <no-reply@libraflow.local>',
-  });
+export function createEmailNotifier(config: ConfigService): EmailNotifier {
+  return new EmailNotifier(emailConfigFrom(config));
 }
 
-export const notifierProvider: Provider = {
-  provide: NOTIFIER,
+export function createTelegramNotifier(
+  config: ConfigService,
+): TelegramNotifier {
+  return new TelegramNotifier(telegramConfigFrom(config));
+}
+
+// Reminder channels: email once SMTP_HOST is set (otherwise the log), plus
+// Telegram once TELEGRAM_BOT_TOKEN is set.
+export function createNotifiers(
+  email: EmailNotifier,
+  telegram: TelegramNotifier,
+): Notifier[] {
+  return [
+    email.configured ? email : new LogNotifier(),
+    ...(telegram.configured ? [telegram] : []),
+  ];
+}
+
+// One instance of each for the app: NOTIFIERS reuses them.
+export const emailNotifierProvider: Provider = {
+  provide: EmailNotifier,
   inject: [ConfigService],
-  useFactory: createNotifier,
+  useFactory: createEmailNotifier,
+};
+
+export const telegramNotifierProvider: Provider = {
+  provide: TelegramNotifier,
+  inject: [ConfigService],
+  useFactory: createTelegramNotifier,
+};
+
+export const notifiersProvider: Provider = {
+  provide: NOTIFIERS,
+  inject: [EmailNotifier, TelegramNotifier],
+  useFactory: createNotifiers,
 };
