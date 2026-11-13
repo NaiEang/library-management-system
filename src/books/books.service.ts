@@ -13,6 +13,7 @@ import { BookCopy } from './entities/book-copy.entity';
 import { Category } from './entities/category.entity';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
+
 @Injectable()
 export class BooksService {
   constructor(
@@ -49,8 +50,8 @@ export class BooksService {
       order: { id: 'DESC' },
       take: 50,
     });
-    return books.map((book) => this.toResponse(book));
-  }
+  return books.map((book) => this.toResponse(book));
+}
   async findOne(id: string) {
     const book = await this.bookRepo.findOne({
       where: { id },

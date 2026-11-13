@@ -16,6 +16,16 @@ export class CreateBookDto {
   @IsNotEmpty()
   @MaxLength(255)
   title: string;
+
+  @ApiPropertyOptional({
+    example: 'book',
+    enum: ['book', 'limited_edition', 'research_paper'],
+    description: 'Type of item (book, limited_edition, research_paper)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  itemType?: string;
   @ApiPropertyOptional({ example: '9780747532699' })
   @IsOptional()
   @IsString()
