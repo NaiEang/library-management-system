@@ -27,6 +27,9 @@ export class Book {
   @Column({ type: 'varchar', length: 255 })
   title: string;
 
+  @Column({ name: 'item_type', type: 'varchar', length: 50, default: 'book' })
+  itemType: string;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   publisher: string;
 
