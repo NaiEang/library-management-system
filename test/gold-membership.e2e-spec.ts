@@ -28,7 +28,7 @@ describe('Gold membership (e2e)', () => {
 
   const buy = (userId: number, staff?: number, body: object = {}) => {
     const req = request(server())
-      .post(`/users/${userId}/gold-membership`)
+      .post(`/api/v1/users/${userId}/gold-membership`)
       .send(body);
     return staff ? req.set(as(staff)) : req;
   };
@@ -212,7 +212,7 @@ describe('Gold membership (e2e)', () => {
     ['a non-numeric id', 'abc', 400],
   ])('%s → %i', async (_label, id, status) => {
     await request(server())
-      .post(`/users/${id}/gold-membership`)
+      .post(`/api/v1/users/${id}/gold-membership`)
       .set(as(USERS.admin))
       .expect(status);
   });

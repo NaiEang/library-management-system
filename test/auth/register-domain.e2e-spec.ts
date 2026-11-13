@@ -15,7 +15,7 @@ describe('POST /auth/register with MEMBER_EMAIL_DOMAINS (e2e)', () => {
 
   const register = (email: string) =>
     request(app.getHttpServer())
-      .post('/auth/register')
+      .post('/api/v1/auth/register')
       .send({
         email,
         username: email.split('@')[0].replace(/[^a-z0-9._-]/gi, ''),
@@ -60,18 +60,18 @@ describe('POST /auth/register with MEMBER_EMAIL_DOMAINS (e2e)', () => {
 
   it('existing accounts with other emails can still log in', async () => {
     await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: 'old.member@gmail.com', password: PASSWORD })
       .expect(200);
   });
 
   it('staff accounts are not restricted: an admin creates a librarian with any email', async () => {
     const login = await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: 'admin@libraflow.test', password: PASSWORD })
       .expect(200);
     await request(app.getHttpServer())
-      .post('/users/librarians')
+      .post('/api/v1/users/librarians')
       .set('Authorization', `Bearer ${login.body.accessToken}`)
       .send({
         email: 'desk.librarian@gmail.com',

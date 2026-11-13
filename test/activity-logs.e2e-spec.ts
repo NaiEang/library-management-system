@@ -64,7 +64,7 @@ describe('Activity logs (e2e)', () => {
   const latest = async () =>
     (
       await request(server())
-        .get('/activity-logs?limit=1')
+        .get('/api/v1/activity-logs?limit=1')
         .set(as(USERS.admin))
         .expect(200)
     ).body.data[0] as LogRow;
@@ -81,12 +81,12 @@ describe('Activity logs (e2e)', () => {
   describe('ActivityLogInterceptor', () => {
     it('records a librarian write with the action, entity, user and IP', async () => {
       await request(server())
-        .post('/probe-loans')
+        .post('/api/v1/probe-loans')
         .set(as(USERS.librarian))
         .send({})
         .expect(201);
       const res = await request(server())
-        .get('/activity-logs?limit=1')
+        .get('/api/v1/activity-logs?limit=1')
         .set(as(USERS.admin))
         .expect(200);
       expect(res.body.data[0]).toMatchObject({
@@ -104,7 +104,7 @@ describe('Activity logs (e2e)', () => {
 
     it('takes the entity id from the route when the handler returns no id', async () => {
       await request(server())
-        .patch('/members/2')
+        .patch('/api/v1/members/2')
         .set(as(USERS.admin))
         .send({})
         .expect(200);
@@ -117,7 +117,7 @@ describe('Activity logs (e2e)', () => {
 
     it('uses @LogActivity names and labels the row from the result', async () => {
       await request(server())
-        .patch('/probe-loans/7/approve')
+        .patch('/api/v1/probe-loans/7/approve')
         .set(as(USERS.librarian))
         .expect(200);
       expect(await latest()).toMatchObject({
@@ -131,17 +131,17 @@ describe('Activity logs (e2e)', () => {
     it('skips reads, members, anonymous callers and opted-out handlers', async () => {
       const before = await count();
       await request(server())
-        .get('/books')
+        .get('/api/v1/books')
         .set(as(USERS.librarian))
         .expect(200);
       await request(server())
-        .post('/probe-loans')
+        .post('/api/v1/probe-loans')
         .set(as(USERS.member))
         .expect(201);
       // Anonymous callers can't write at all now (global JWT guard)
-      await request(server()).post('/probe-loans').send({}).expect(401);
+      await request(server()).post('/api/v1/probe-loans').send({}).expect(401);
       await request(server())
-        .post('/probe-loans/login')
+        .post('/api/v1/probe-loans/login')
         .set(as(USERS.admin))
         .expect(201);
       expect(await count()).toBe(before);
@@ -151,7 +151,7 @@ describe('Activity logs (e2e)', () => {
   describe('GET /activity-logs', () => {
     it('filters by role, action and entity, newest first', async () => {
       const res = await request(server())
-        .get('/activity-logs?role=librarian&entityType=Loan')
+        .get('/api/v1/activity-logs?role=librarian&entityType=Loan')
         .set(as(USERS.librarian))
         .expect(200);
       const rows = res.body.data as (LogRow & {
@@ -174,7 +174,7 @@ describe('Activity logs (e2e)', () => {
 
     it('searches descriptions and paginates', async () => {
       const res = await request(server())
-        .get('/activity-logs?search=checked%20in&limit=1&page=1')
+        .get('/api/v1/activity-logs?search=checked%20in&limit=1&page=1')
         .set(as(USERS.admin))
         .expect(200);
       expect(res.body.meta).toEqual({
@@ -190,7 +190,7 @@ describe('Activity logs (e2e)', () => {
 
     it('lists filter values with counts', async () => {
       const res = await request(server())
-        .get('/activity-logs/facets')
+        .get('/api/v1/activity-logs/facets')
         .set(as(USERS.admin))
         .expect(200);
       expect(res.body.actions).toEqual(
@@ -203,19 +203,19 @@ describe('Activity logs (e2e)', () => {
 
     it('validates the query and keeps members out', async () => {
       await request(server())
-        .get('/activity-logs?limit=500')
+        .get('/api/v1/activity-logs?limit=500')
         .set(as(USERS.admin))
         .expect(400);
       await request(server())
-        .get('/activity-logs?userId=abc')
+        .get('/api/v1/activity-logs?userId=abc')
         .set(as(USERS.admin))
         .expect(400);
       await request(server())
-        .get('/activity-logs?role=owner')
+        .get('/api/v1/activity-logs?role=owner')
         .set(as(USERS.admin))
         .expect(400);
       await request(server())
-        .get('/activity-logs')
+        .get('/api/v1/activity-logs')
         .set(as(USERS.member))
         .expect(403);
     });

@@ -3,7 +3,7 @@ import './common/observability/instrumentation';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { configureApp } from './app.setup';
+import { API_PREFIX, configureApp, DEFAULT_API_VERSION } from './app.setup';
 import { appLogger } from './common/observability/app-logger';
 
 async function bootstrap() {
@@ -32,7 +32,7 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
   appLogger.log(
-    `LibraFlow API on http://localhost:${port} (docs at /api/docs, metrics at /metrics)`,
+    `LibraFlow API on http://localhost:${port}/${API_PREFIX}/v${DEFAULT_API_VERSION} (docs at /api/docs, metrics at /metrics)`,
     'Bootstrap',
   );
 }

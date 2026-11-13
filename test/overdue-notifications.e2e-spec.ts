@@ -25,14 +25,14 @@ describe('Overdue reminders (e2e)', () => {
 
   it('is staff-only', async () => {
     await request(app.getHttpServer())
-      .post('/notifications/overdue/scan')
+      .post('/api/v1/notifications/overdue/scan')
       .set(as(USERS.member))
       .expect(403);
   });
 
   it('queues a reminder for the overdue item and the worker saves it in-app', async () => {
     const res = await request(app.getHttpServer())
-      .post('/notifications/overdue/scan')
+      .post('/api/v1/notifications/overdue/scan')
       .set(as(USERS.librarian))
       .expect(200);
     // Fixtures: item 2 is already overdue, item 6 is due tomorrow, item 1
@@ -81,7 +81,7 @@ describe('Overdue reminders (e2e)', () => {
 
   it('does not remind twice on the same day', async () => {
     await request(app.getHttpServer())
-      .post('/notifications/overdue/scan')
+      .post('/api/v1/notifications/overdue/scan')
       .set(as(USERS.admin))
       .expect(200);
     // Give a duplicate job time to run if one had been queued

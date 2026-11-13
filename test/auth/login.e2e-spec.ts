@@ -38,11 +38,11 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
 
   const login = (email: string, password = PASSWORD) =>
     request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .set('User-Agent', 'vitest')
       .send({ email, password });
   const me = (token?: string) => {
-    const req = request(app.getHttpServer()).get('/auth/me');
+    const req = request(app.getHttpServer()).get('/api/v1/auth/me');
     return token ? req.set('Authorization', `Bearer ${token}`) : req;
   };
   const rawRefreshToken = (res: request.Response) =>
@@ -204,7 +204,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
       [{ email: 'good.student@demo.com', password: 'x'.repeat(513) }],
     ])('rejects a malformed body %j with 400', async (body) => {
       await request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send(body)
         .expect(400);
     });
@@ -243,7 +243,7 @@ describe('POST /auth/login and GET /auth/me (e2e)', () => {
       expect(audit).toHaveBeenCalledWith(
         'THROTTLE_HIT',
         expect.objectContaining({
-          route: 'POST /auth/login',
+          route: 'POST /api/v1/auth/login',
           tracker: 'email:good.student@demo.com',
         }),
       );

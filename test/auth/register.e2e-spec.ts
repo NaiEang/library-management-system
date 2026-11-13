@@ -27,7 +27,7 @@ describe('POST /auth/register (e2e)', () => {
   let sentCodes: TestApp['sentCodes'];
 
   const register = (body: object) =>
-    request(app.getHttpServer()).post('/auth/register').send(body);
+    request(app.getHttpServer()).post('/api/v1/auth/register').send(body);
 
   // A fresh app per test: the throttler counts in memory.
   beforeEach(async () => {
@@ -104,7 +104,7 @@ describe('POST /auth/register (e2e)', () => {
   it('the new account can log in, and /auth/me shows the pending membership', async () => {
     await register(newMember).expect(201);
     const login = await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: 'new.member@demo.com', password: PASSWORD })
       .expect(200);
     expect(login.body.user).toMatchObject({
@@ -112,7 +112,7 @@ describe('POST /auth/register (e2e)', () => {
       membershipStatus: 'pending_deposit',
     });
     const me = await request(app.getHttpServer())
-      .get('/auth/me')
+      .get('/api/v1/auth/me')
       .set('Authorization', `Bearer ${login.body.accessToken}`)
       .expect(200);
     expect(me.body.member).toMatchObject({
@@ -230,7 +230,7 @@ describe('POST /auth/register (e2e)', () => {
       }).expect(201);
     }
     await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: 'user0@demo.com', password: PASSWORD })
       .expect(200);
   });

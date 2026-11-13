@@ -22,12 +22,12 @@ describe('Observability (e2e)', () => {
 
   it('exposes RED and library metrics for Prometheus', async () => {
     await request(app.getHttpServer())
-      .get('/books')
+      .get('/api/v1/books')
       .set(as(USERS.librarian))
       .expect(200);
     const res = await request(app.getHttpServer()).get('/metrics').expect(200);
     expect(res.text).toContain(
-      'http_server_request_duration_seconds_bucket{le="0.005",method="GET",route="/books"',
+      'http_server_request_duration_seconds_bucket{le="0.005",method="GET",route="/api/v1/books"',
     );
     expect(res.text).toContain('libraflow_overdue_loan_items 1');
     expect(res.text).toContain('libraflow_book_copies{status="lost"} 1');
@@ -48,7 +48,7 @@ describe('Observability (e2e)', () => {
     expect(logs.body[0]).toMatchObject({
       level: 'log',
       context: 'HTTP',
-      message: expect.stringContaining('GET /books 200'),
+      message: expect.stringContaining('GET /api/v1/books 200'),
     });
 
     await request(app.getHttpServer())

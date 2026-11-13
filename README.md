@@ -13,11 +13,13 @@ cp .env.example .env     # local defaults; nothing here touches Supabase
 #   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 npm install
 npm run seed:dev         # builds the schema in the LOCAL db and fills ~4 months of dummy data
-npm run start:dev        # http://localhost:3000, Swagger at /api/docs
+npm run start:dev        # API at http://localhost:3000/api/v1, Swagger at /api/docs
 npm run simulate -- 300  # optional: 5 min of dummy traffic for traces and metrics (other terminal)
 ```
 
-Every route needs a login unless it's marked `@Public()`. Log in with `POST /auth/login`
+Every API route is under `/api/v1` (e.g. `/api/v1/auth/login`); only `/health`, `/metrics`,
+`/observability/*`, `/queues` and the Swagger UI at `/api/docs` stay at the root.
+Every route needs a login unless it's marked `@Public()`. Log in with `POST /api/v1/auth/login`
 and send `Authorization: Bearer <accessToken>` (tokens last 15 minutes). After `seed:dev`,
 the accounts are `admin@libraflow.local`, `manager1@libraflow.local`, `librarian1..4@libraflow.local` and
 `member1..3@libraflow.local`, all with the password `libraflow-dev-password` (set
@@ -44,9 +46,9 @@ Overdue reminders (BullMQ) and the queue dashboard at `/queues`: see
 
 | Endpoint | Who | Notes |
 |---|---|---|
-| `GET /dashboard/stats` | admin, librarian | Stat cards, copies and loan items by status, 30-day loan trend, top books, category usage, recent activity |
-| `GET /activity-logs` | admin, librarian | `page`, `limit` (≤100), `action`, `entityType`, `userId`, `role`, `from`, `to`, `search` |
-| `GET /activity-logs/facets` | admin, librarian | Values and counts for the filter dropdowns |
+| `GET /api/v1/dashboard/stats` | admin, librarian | Stat cards, copies and loan items by status, 30-day loan trend, top books, category usage, recent activity |
+| `GET /api/v1/activity-logs` | admin, librarian | `page`, `limit` (≤100), `action`, `entityType`, `userId`, `role`, `from`, `to`, `search` |
+| `GET /api/v1/activity-logs/facets` | admin, librarian | Values and counts for the filter dropdowns |
 | `GET /observability/{metrics,traces,logs}` | admin | Recent metrics, traces and logs as JSON |
 | `GET /metrics`, `GET /health` | public | Prometheus scrape target and health check |
 

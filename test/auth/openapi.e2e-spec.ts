@@ -45,41 +45,41 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
   });
 
   it.each([
-    ['/auth/login', 'post'],
-    ['/auth/register', 'post'],
-    ['/auth/refresh', 'post'],
-    ['/auth/logout', 'post'],
+    ['/api/v1/auth/login', 'post'],
+    ['/api/v1/auth/register', 'post'],
+    ['/api/v1/auth/refresh', 'post'],
+    ['/api/v1/auth/logout', 'post'],
   ] as const)('%s is public: no lock', (path, method) => {
     expect(operation(path, method)).toBeDefined();
     expect(operation(path, method)?.security).toBeUndefined();
   });
 
   it.each([
-    ['/auth/me', 'get'],
-    ['/users/librarians', 'post'],
-    ['/users/managers', 'post'],
-    ['/users/members', 'get'],
-    ['/users/{id}/verify-deposit', 'patch'],
-    ['/users/{id}/gold-membership', 'post'],
-    ['/users/{id}/status', 'patch'],
-    ['/users/{id}/reset-password', 'post'],
-    ['/auth/password', 'patch'],
-    ['/auth/email/send-code', 'post'],
-    ['/auth/email/verify', 'post'],
+    ['/api/v1/auth/me', 'get'],
+    ['/api/v1/users/librarians', 'post'],
+    ['/api/v1/users/managers', 'post'],
+    ['/api/v1/users/members', 'get'],
+    ['/api/v1/users/{id}/verify-deposit', 'patch'],
+    ['/api/v1/users/{id}/gold-membership', 'post'],
+    ['/api/v1/users/{id}/status', 'patch'],
+    ['/api/v1/users/{id}/reset-password', 'post'],
+    ['/api/v1/auth/password', 'patch'],
+    ['/api/v1/auth/email/send-code', 'post'],
+    ['/api/v1/auth/email/verify', 'post'],
   ] as const)('%s requires the bearer token', (path, method) => {
     expect(operation(path, method)?.security).toEqual([{ bearer: [] }]);
   });
 
   it.each([
-    ['/auth/login', 'LoginDto', ['email', 'password'], ['email', 'password']],
+    ['/api/v1/auth/login', 'LoginDto', ['email', 'password'], ['email', 'password']],
     [
-      '/auth/register',
+      '/api/v1/auth/register',
       'RegisterDto',
       ['email', 'username', 'password'],
       ['email', 'username', 'password', 'firstName', 'lastName', 'phone'],
     ],
     [
-      '/users/librarians',
+      '/api/v1/users/librarians',
       'CreateStaffDto',
       ['email', 'username', 'password', 'firstName', 'lastName'],
       ['email', 'username', 'password', 'firstName', 'lastName', 'phone'],
@@ -107,29 +107,29 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
   it('has no leftover scaffold routes', () => {
     expect(
       Object.keys(doc.paths)
-        .filter((p) => /^\/(auth|users|members)/.test(p))
+        .filter((p) => /^\/api\/v1\/(auth|users|members)/.test(p))
         .sort(),
     ).toEqual([
-      '/auth/email/send-code',
-      '/auth/email/verify',
-      '/auth/login',
-      '/auth/logout',
-      '/auth/me',
-      '/auth/password',
-      '/auth/refresh',
-      '/auth/register',
-      '/users/librarians',
-      '/users/managers',
-      '/users/members',
-      '/users/{id}/gold-membership',
-      '/users/{id}/reset-password',
-      '/users/{id}/status',
-      '/users/{id}/verify-deposit',
+      '/api/v1/auth/email/send-code',
+      '/api/v1/auth/email/verify',
+      '/api/v1/auth/login',
+      '/api/v1/auth/logout',
+      '/api/v1/auth/me',
+      '/api/v1/auth/password',
+      '/api/v1/auth/refresh',
+      '/api/v1/auth/register',
+      '/api/v1/users/librarians',
+      '/api/v1/users/managers',
+      '/api/v1/users/members',
+      '/api/v1/users/{id}/gold-membership',
+      '/api/v1/users/{id}/reset-password',
+      '/api/v1/users/{id}/status',
+      '/api/v1/users/{id}/verify-deposit',
     ]);
   });
 
   it('documents the member list query options', () => {
-    const params = (operation('/users/members', 'get')?.parameters ?? []) as {
+    const params = (operation('/api/v1/users/members', 'get')?.parameters ?? []) as {
       name: string;
       in: string;
     }[];
@@ -149,7 +149,7 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
   });
 
   it('email/verify documents a 6-digit code as its only field', () => {
-    expect(bodySchema('/auth/email/verify')).toBe(
+    expect(bodySchema('/api/v1/auth/email/verify')).toBe(
       '#/components/schemas/VerifyEmailDto',
     );
     expect(Object.keys(schema('VerifyEmailDto').properties)).toEqual(['code']);
@@ -158,16 +158,16 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
 
   it('verify-deposit takes no body', () => {
     expect(
-      operation('/users/{id}/verify-deposit', 'patch')?.requestBody,
+      operation('/api/v1/users/{id}/verify-deposit', 'patch')?.requestBody,
     ).toBeUndefined();
   });
 
   it('documents the status and password-change bodies', () => {
-    expect(bodySchema('/users/{id}/status', 'patch')).toBe(
+    expect(bodySchema('/api/v1/users/{id}/status', 'patch')).toBe(
       '#/components/schemas/SetAccountStatusDto',
     );
     expect(schema('SetAccountStatusDto').required).toEqual(['enabled']);
-    expect(bodySchema('/auth/password', 'patch')).toBe(
+    expect(bodySchema('/api/v1/auth/password', 'patch')).toBe(
       '#/components/schemas/ChangePasswordDto',
     );
     expect(schema('ChangePasswordDto').required).toEqual([
@@ -177,17 +177,17 @@ describe('OpenAPI document for Auth & Users (e2e)', () => {
   });
 
   it('refresh and logout take the refresh token in the body', () => {
-    for (const path of ['/auth/refresh', '/auth/logout']) {
+    for (const path of ['/api/v1/auth/refresh', '/api/v1/auth/logout']) {
       expect(bodySchema(path)).toBe('#/components/schemas/RefreshTokenDto');
     }
     expect(schema('RefreshTokenDto').required).toEqual(['refreshToken']);
   });
 
   it('creating a manager uses the same body as creating a librarian', () => {
-    expect(bodySchema('/users/managers')).toBe(
+    expect(bodySchema('/api/v1/users/managers')).toBe(
       '#/components/schemas/CreateStaffDto',
     );
-    expect(bodySchema('/users/librarians')).toBe(
+    expect(bodySchema('/api/v1/users/librarians')).toBe(
       '#/components/schemas/CreateStaffDto',
     );
   });

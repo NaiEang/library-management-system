@@ -39,9 +39,9 @@ describe('Email verification (e2e)', () => {
   const server = () => app.getHttpServer();
 
   const sendCode = (userId: number) =>
-    request(server()).post('/auth/email/send-code').set(as(userId));
+    request(server()).post('/api/v1/auth/email/send-code').set(as(userId));
   const verify = (userId: number, code: string) =>
-    request(server()).post('/auth/email/verify').set(as(userId)).send({ code });
+    request(server()).post('/api/v1/auth/email/verify').set(as(userId)).send({ code });
   const lastCode = (userId: number) =>
     sent.filter((s) => s.userId === String(userId)).at(-1)!.code;
   const codeRow = async (userId: number) =>
@@ -134,9 +134,9 @@ describe('Email verification (e2e)', () => {
   });
 
   it('guest → 401 on both routes', async () => {
-    await request(server()).post('/auth/email/send-code').expect(401);
+    await request(server()).post('/api/v1/auth/email/send-code').expect(401);
     await request(server())
-      .post('/auth/email/verify')
+      .post('/api/v1/auth/email/verify')
       .send({ code: '123456' })
       .expect(401);
   });
@@ -164,7 +164,7 @@ describe('Email verification (e2e)', () => {
     );
     expect(user.email_verified_at).toBeInstanceOf(Date);
     const me = await request(server())
-      .get('/auth/me')
+      .get('/api/v1/auth/me')
       .set(as(MINE.happy))
       .expect(200);
     expect(me.body.emailVerified).toBe(true);
@@ -277,7 +277,7 @@ describe('Email verification (e2e)', () => {
 
   it('a librarian created by an admin counts as verified', async () => {
     const created = await request(server())
-      .post('/users/librarians')
+      .post('/api/v1/users/librarians')
       .set(as(USERS.admin))
       .send({
         email: 'verified.librarian@test.local',
@@ -288,7 +288,7 @@ describe('Email verification (e2e)', () => {
       })
       .expect(201);
     const me = await request(server())
-      .get('/auth/me')
+      .get('/api/v1/auth/me')
       .set(as(Number(created.body.id)))
       .expect(200);
     expect(me.body.emailVerified).toBe(true);

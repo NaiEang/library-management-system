@@ -15,7 +15,7 @@
 4. While a student has an overdue book, **they can't borrow** anything else.
 
 You don't have to wait for 08:00: staff can run the same scan any time with
-`POST /notifications/overdue/scan`. Everything below runs on a **local** database.
+`POST /api/v1/notifications/overdue/scan`. Everything below runs on a **local** database.
 
 ## Setup
 
@@ -36,11 +36,11 @@ npm run test:e2e -- test/overdue-notifications.e2e-spec.ts test/loans-access.e2e
 
 ## Test it by hand
 
-**1. Log in as staff.** Open http://localhost:3000/api/docs, call `POST /auth/login` with
+**1. Log in as staff.** Open http://localhost:3000/api/docs, call `POST /api/v1/auth/login` with
 `admin@libraflow.local` / `libraflow-dev-password`, then click **Authorize** and paste the
 `accessToken`.
 
-**2. Run the scan.** Call `POST /notifications/overdue/scan`.
+**2. Run the scan.** Call `POST /api/v1/notifications/overdue/scan`.
 You get `{ "marked": n, "queued": n, "overdue": n, "dueToday": n, "dueTomorrow": n }`:
 `marked` is how many books just became overdue, `queued` is how many reminders were put on
 the queue (the last three counts together).
@@ -58,20 +58,20 @@ docker exec libraflow-postgres psql -U libraflow -d libraflow_dev -c "SELECT use
 The newest rows should be from just now, with the overdue message.
 
 **5. Check the borrowing block.** Log in as a member (`member1..3@libraflow.local`, same
-password) who has an overdue book and call `POST /loans/request` with
+password) who has an overdue book and call `POST /api/v1/loans/request` with
 `{ "bookCopyIds": ["2"] }`. You should get `400 Account blocked: You have overdue books.`
 A member without overdue books gets the loan instead.
-Members also get `403` if they try `PATCH /loans/{id}/approve`, which is staff only.
+Members also get `403` if they try `PATCH /api/v1/loans/{id}/approve`, which is staff only.
 
 ## Telegram
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) and set `TELEGRAM_BOT_TOKEN` in `.env`.
-2. As a member, call `POST /notifications/telegram/link`. You get `{ "url": "https://t.me/<bot>?start=..." }`.
+2. As a member, call `POST /api/v1/notifications/telegram/link`. You get `{ "url": "https://t.me/<bot>?start=..." }`.
 3. Open the url and press **Start**. The bot replies *Linked!* and
-   `GET /notifications/telegram` now returns `{ "linked": true }`.
+   `GET /api/v1/notifications/telegram` now returns `{ "linked": true }`.
 4. Run the scan (step 2 above): the reminders arrive in Telegram as well as by email.
 
-The link works once and expires after 15 minutes. `DELETE /notifications/telegram`, or `/stop`
+The link works once and expires after 15 minutes. `DELETE /api/v1/notifications/telegram`, or `/stop`
 in the bot, unlinks; blocking the bot unlinks too. Run the bot's polling on one instance only
 (`TELEGRAM_POLLING=off` on the others).
 

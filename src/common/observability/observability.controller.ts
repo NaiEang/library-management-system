@@ -7,6 +7,7 @@ import {
   ParseBoolPipe,
   ParseIntPipe,
   Query,
+  VERSION_NEUTRAL,
 } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
@@ -18,7 +19,8 @@ import { MetricsService } from './metrics.service';
 import { traceStore } from './trace-store';
 
 @ApiTags('observability')
-@Controller()
+// Unversioned and outside /api: /health, /metrics, /observability/*
+@Controller({ version: VERSION_NEUTRAL })
 export class ObservabilityController {
   constructor(
     private readonly metrics: MetricsService,

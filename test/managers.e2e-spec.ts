@@ -79,14 +79,14 @@ describe('Manager role (e2e)', () => {
       ['manager', MINE.manager, 403],
     ])('%s → %i', async (_label, actor, status) => {
       const req = request(server())
-        .post('/users/managers')
+        .post('/api/v1/users/managers')
         .send(newStaff('refused.manager'));
       await (actor ? req.set(as(actor)) : req).expect(status);
     });
 
     it('admin → 201: an active manager who can log in with a 12-hour staff session', async () => {
       const res = await request(server())
-        .post('/users/managers')
+        .post('/api/v1/users/managers')
         .set(as(USERS.admin))
         .send(newStaff('made.manager'))
         .expect(201);
@@ -97,7 +97,7 @@ describe('Manager role (e2e)', () => {
         username: 'made.manager',
       });
       const login = await request(server())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({
           email: 'made.manager@test.local',
           password: 'quiet shelves at noon 42',
@@ -113,12 +113,12 @@ describe('Manager role (e2e)', () => {
   describe('what a manager can do', () => {
     it('create librarians (a librarian cannot)', async () => {
       await request(server())
-        .post('/users/librarians')
+        .post('/api/v1/users/librarians')
         .set(as(USERS.librarian))
         .send(newStaff('nope.lib'))
         .expect(403);
       const res = await request(server())
-        .post('/users/librarians')
+        .post('/api/v1/users/librarians')
         .set(as(MINE.manager))
         .send(newStaff('hired.by.manager'))
         .expect(201);
@@ -128,22 +128,22 @@ describe('Manager role (e2e)', () => {
 
     it('use librarian routes: member list, dashboard, activity logs', async () => {
       await request(server())
-        .get('/users/members')
+        .get('/api/v1/users/members')
         .set(as(MINE.manager))
         .expect(200);
       await request(server())
-        .get('/dashboard/stats')
+        .get('/api/v1/dashboard/stats')
         .set(as(MINE.manager))
         .expect(200);
       await request(server())
-        .get('/activity-logs?limit=1')
+        .get('/api/v1/activity-logs?limit=1')
         .set(as(MINE.manager))
         .expect(200);
     });
 
     it('verify a deposit', async () => {
       const res = await request(server())
-        .patch(`/users/${MINE.member}/verify-deposit`)
+        .patch(`/api/v1/users/${MINE.member}/verify-deposit`)
         .set(as(MINE.manager))
         .expect(200);
       expect(res.body.membershipStatus).toBe('active');
@@ -154,17 +154,17 @@ describe('Manager role (e2e)', () => {
       ['a member', MINE.member],
     ])('disable, re-enable and reset %s', async (_label, id) => {
       await request(server())
-        .patch(`/users/${id}/status`)
+        .patch(`/api/v1/users/${id}/status`)
         .set(as(MINE.manager))
         .send({ enabled: false })
         .expect(200);
       await request(server())
-        .patch(`/users/${id}/status`)
+        .patch(`/api/v1/users/${id}/status`)
         .set(as(MINE.manager))
         .send({ enabled: true })
         .expect(200);
       await request(server())
-        .post(`/users/${id}/reset-password`)
+        .post(`/api/v1/users/${id}/reset-password`)
         .set(as(MINE.manager))
         .expect(201);
     });
@@ -184,12 +184,12 @@ describe('Manager role (e2e)', () => {
       ['an admin', USERS.admin],
     ])('disable or reset %s → 403, and nothing changes', async (_label, id) => {
       await request(server())
-        .patch(`/users/${id}/status`)
+        .patch(`/api/v1/users/${id}/status`)
         .set(as(MINE.manager))
         .send({ enabled: false })
         .expect(403);
       await request(server())
-        .post(`/users/${id}/reset-password`)
+        .post(`/api/v1/users/${id}/reset-password`)
         .set(as(MINE.manager))
         .expect(403);
       const [row] = await db.query<{ status: string }[]>(
@@ -212,11 +212,11 @@ describe('Manager role (e2e)', () => {
 
     it('a librarian still cannot reset or disable a manager', async () => {
       await request(server())
-        .post(`/users/${MINE.manager2}/reset-password`)
+        .post(`/api/v1/users/${MINE.manager2}/reset-password`)
         .set(as(USERS.librarian))
         .expect(403);
       await request(server())
-        .patch(`/users/${MINE.manager2}/status`)
+        .patch(`/api/v1/users/${MINE.manager2}/status`)
         .set(as(USERS.librarian))
         .send({ enabled: false })
         .expect(403);
@@ -224,12 +224,12 @@ describe('Manager role (e2e)', () => {
 
     it('an admin can disable and re-enable a manager', async () => {
       await request(server())
-        .patch(`/users/${MINE.manager2}/status`)
+        .patch(`/api/v1/users/${MINE.manager2}/status`)
         .set(as(USERS.admin))
         .send({ enabled: false })
         .expect(200);
       await request(server())
-        .patch(`/users/${MINE.manager2}/status`)
+        .patch(`/api/v1/users/${MINE.manager2}/status`)
         .set(as(USERS.admin))
         .send({ enabled: true })
         .expect(200);

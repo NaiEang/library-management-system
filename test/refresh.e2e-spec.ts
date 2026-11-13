@@ -22,16 +22,16 @@ describe('Refresh and logout (e2e)', () => {
 
   const login = (username: string) =>
     request(server())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: `${username}@test.local`, password: PASSWORD })
       .expect(200);
   const refresh = (refreshToken: unknown) =>
-    request(server()).post('/auth/refresh').send({ refreshToken });
+    request(server()).post('/api/v1/auth/refresh').send({ refreshToken });
   const logout = (refreshToken: unknown) =>
-    request(server()).post('/auth/logout').send({ refreshToken });
+    request(server()).post('/api/v1/auth/logout').send({ refreshToken });
   const me = (accessToken: string) =>
     request(server())
-      .get('/auth/me')
+      .get('/api/v1/auth/me')
       .set('Authorization', `Bearer ${accessToken}`);
   const rowOf = async (raw: string) =>
     (
