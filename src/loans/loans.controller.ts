@@ -37,6 +37,12 @@ export class LoansController {
   }
 
   @Roles(RoleName.MEMBER, RoleName.LIBRARIAN, RoleName.ADMIN)
+  @Get(':id')
+  getLoan(@Param('id') id: string) {
+    return this.loansService.getLoan(id);
+  }
+
+  @Roles(RoleName.MEMBER, RoleName.LIBRARIAN, RoleName.ADMIN)
   @Post('request')
   requestLoan(@CurrentUser() user: AuthUser, @Body() dto: RequestLoanDto) {
     return this.loansService.requestLoan(borrowerFor(user, dto.memberId), dto.bookCopyIds);
@@ -54,9 +60,9 @@ export class LoansController {
   @Roles(RoleName.LIBRARIAN, RoleName.ADMIN)
   @Patch(':id/reject')
   async rejectLoan(@Param('id') id: string) {
-    const loan = await this.loansService.rejectLoan(id);
-    this.loanNotifications.onRejected(loan);
-    return loan;
+    const result = await this.loansService.rejectLoan(id);
+    this.loanNotifications.onRejected(result as never);
+    return result;
   }
 
   @Roles(RoleName.LIBRARIAN, RoleName.ADMIN)

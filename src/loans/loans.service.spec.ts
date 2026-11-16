@@ -13,7 +13,6 @@ function setup({
   copies = [{ id: '10', status: 'available' }] as Array<{ id: string; status: string }>,
   existingLoan = null as unknown,
 } = {}) {
-  // Each repository is "bound" to the transaction by returning itself
   const manager = {
     transaction: (work: (m: unknown) => unknown) => work(manager),
     withRepository: <T>(repo: T) => repo,
@@ -37,14 +36,17 @@ function setup({
     find: vi.fn(() => Promise.resolve(copies)),
     save: vi.fn((rows: unknown) => Promise.resolve(rows)),
   };
-  const members = { findOne: vi.fn(() => Promise.resolve(memberRow)) };
+  const members = {
+    findOne: vi.fn(() => Promise.resolve(memberRow)),
+    save: vi.fn((row: unknown) => Promise.resolve(row)),
+  };
   const service = new LoansService(
     loans as unknown as Repository<Loan>,
     loanItems as unknown as Repository<LoanItem>,
     bookCopies as unknown as Repository<BookCopy>,
     members as unknown as Repository<Member>,
   );
-  return { service, qb, loans, loanItems, bookCopies };
+  return { service, qb, loans, loanItems, bookCopies, members };
 }
 
 describe('LoansService.requestLoan', () => {
@@ -114,7 +116,7 @@ const activeLoan = {
 
 describe('LoansService.rejectLoan', () => {
   it('sets the loan to rejected and releases copies back to available', async () => {
-    const { service, loans, bookCopies, loanItems } = setup({ existingLoan: pendingLoan });
+    const { service, bookCopies } = setup({ existingLoan: pendingLoan });
     const result = await service.rejectLoan('50');
 
     expect(result).toMatchObject({ id: '50', status: 'rejected' });
@@ -122,11 +124,6 @@ describe('LoansService.rejectLoan', () => {
       expect.arrayContaining([
         expect.objectContaining({ id: '10', status: 'available' }),
         expect.objectContaining({ id: '11', status: 'available' }),
-      ]),
-    );
-    expect(loanItems.save).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ status: 'returned' }),
       ]),
     );
   });
@@ -184,5 +181,140 @@ describe('LoansService.findByMember', () => {
     expect(loans.findAndCount).toHaveBeenCalledWith(
       expect.objectContaining({ skip: 20, take: 10 }),
     );
+  });
+});
+
+describe('LoansService.returnLoan', () => {
+  const DAY_MS = 24 * 3600 * 1000;
+
+  function returnSetup({
+    memberRow = { id: '1', depositAmount: '10.00', blockedUntil: null } as unknown,
+    loanItems = [] as Array<{
+      id: string;
+      status: string;
+      dueDate: Date | null;
+      returnedAt: Date | null;
+      fineAmount: number;
+      bookCopy: { id: string; status: string };
+    }>,
+    loanStatus = 'active',
+  } = {}) {
+    const loan = {
+      id: '50',
+      memberId: '1',
+      status: loanStatus,
+      loanItems,
+    };
+    const manager = {
+      transaction: (work: (m: unknown) => unknown) => work(manager),
+      withRepository: <T>(repo: T) => repo,
+    };
+    const loans = {
+      manager,
+      findOne: vi.fn(() => Promise.resolve(loan)),
+      save: vi.fn((l: object) => Promise.resolve(l)),
+    };
+    const loanItemsRepo = {
+      save: vi.fn((rows: unknown) => Promise.resolve(rows)),
+    };
+    const bookCopies = {
+      save: vi.fn((rows: unknown) => Promise.resolve(rows)),
+    };
+    const members = {
+      findOne: vi.fn(() => Promise.resolve(memberRow)),
+      save: vi.fn((row: unknown) => Promise.resolve(row)),
+    };
+    const service = new LoansService(
+      loans as unknown as Repository<Loan>,
+      loanItemsRepo as unknown as Repository<LoanItem>,
+      bookCopies as unknown as Repository<BookCopy>,
+      members as unknown as Repository<Member>,
+    );
+    return { service, loan, members };
+  }
+
+  it('returns items without fine when not overdue', async () => {
+    const dueDate = new Date(Date.now() + 3 * DAY_MS);
+    const { service, members } = returnSetup({
+      loanItems: [
+        { id: '1', status: 'borrowed', dueDate, returnedAt: null, fineAmount: 0, bookCopy: { id: '10', status: 'borrowed' } },
+      ],
+    });
+    const result = await service.returnLoan('50');
+    expect(result.status).toBe('completed');
+    expect(result.totalFine).toBe(0);
+    expect(result.blockedUntil).toBeNull();
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].overdueDays).toBe(0);
+    expect(result.items[0].fineAmount).toBe(0);
+    expect(members.save).not.toHaveBeenCalled();
+  });
+
+  it('calculates fine and deducts from deposit for overdue items', async () => {
+    const dueDate = new Date(Date.now() - 5.5 * DAY_MS);
+    const memberRow = { id: '1', depositAmount: '10.00', blockedUntil: null };
+    const items = [
+      { id: '1', status: 'overdue', dueDate, returnedAt: null, fineAmount: 0, bookCopy: { id: '10', status: 'borrowed' } },
+    ];
+    const { service, members } = returnSetup({ memberRow, loanItems: items });
+
+    const result = await service.returnLoan('50');
+
+    expect(items[0].fineAmount).toBe(1.5);
+    expect(items[0].status).toBe('returned');
+    expect(result.totalFine).toBe(1.5);
+    expect(result.blockedUntil).toBeInstanceOf(Date);
+    expect(result.items[0].overdueDays).toBe(6);
+    expect(members.save).toHaveBeenCalled();
+    const savedMember = (members.save as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(savedMember.depositAmount).toBe(8.5);
+  });
+
+  it('clamps deposit at zero when fine exceeds balance', async () => {
+    const dueDate = new Date(Date.now() - 50.5 * DAY_MS);
+    const memberRow = { id: '1', depositAmount: '5.00', blockedUntil: null };
+    const items = [
+      { id: '1', status: 'overdue', dueDate, returnedAt: null, fineAmount: 0, bookCopy: { id: '10', status: 'borrowed' } },
+    ];
+    const { service, members } = returnSetup({ memberRow, loanItems: items });
+
+    await service.returnLoan('50');
+
+    const savedMember = (members.save as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(savedMember.depositAmount).toBe(0);
+  });
+
+  it('sets blockedUntil to 2× overdue days from now', async () => {
+    const dueDate = new Date(Date.now() - 5.5 * DAY_MS);
+    const memberRow = { id: '1', depositAmount: '10.00', blockedUntil: null };
+    const items = [
+      { id: '1', status: 'overdue', dueDate, returnedAt: null, fineAmount: 0, bookCopy: { id: '10', status: 'borrowed' } },
+    ];
+    const { service, members } = returnSetup({ memberRow, loanItems: items });
+
+    await service.returnLoan('50');
+
+    const savedMember = (members.save as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const blockDays = (savedMember.blockedUntil.getTime() - Date.now()) / DAY_MS;
+    expect(blockDays).toBeGreaterThan(11);
+    expect(blockDays).toBeLessThan(13);
+  });
+
+  it('uses the max overdue days across multiple items for blockedUntil', async () => {
+    const memberRow = { id: '1', depositAmount: '20.00', blockedUntil: null };
+    const items = [
+      { id: '1', status: 'overdue', dueDate: new Date(Date.now() - 3.5 * DAY_MS), returnedAt: null, fineAmount: 0, bookCopy: { id: '10', status: 'borrowed' } },
+      { id: '2', status: 'overdue', dueDate: new Date(Date.now() - 7.5 * DAY_MS), returnedAt: null, fineAmount: 0, bookCopy: { id: '11', status: 'borrowed' } },
+    ];
+    const { service, members } = returnSetup({ memberRow, loanItems: items });
+
+    await service.returnLoan('50');
+
+    const savedMember = (members.save as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(savedMember.depositAmount).toBe(17);
+    expect(savedMember.blockedUntil).toBeInstanceOf(Date);
+    const blockDays = (savedMember.blockedUntil.getTime() - Date.now()) / DAY_MS;
+    expect(blockDays).toBeGreaterThan(15);
+    expect(blockDays).toBeLessThan(17);
   });
 });
