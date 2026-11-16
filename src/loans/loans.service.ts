@@ -6,6 +6,7 @@ import { CopyStatus, LoanItemStatus, LoanStatus } from '../common/constants';
 import { Member } from '../members/entities/member.entity';
 import { LoanItem } from './entities/loan-item.entity';
 import { Loan } from './entities/loan.entity';
+import type { MyLoansQueryDto } from './dto/my-loans-query.dto';
 
 const BORROW_PERIOD_DAYS = 14;
 const REQUIRED_DEPOSIT = 5;
@@ -22,6 +23,24 @@ export class LoansService {
     @InjectRepository(Member)
     private readonly memberRepository: Repository<Member>,
   ) {}
+
+  async findByMember(
+    memberId: string,
+    query: MyLoansQueryDto,
+  ): Promise<{ data: Loan[]; total: number; page: number; limit: number }> {
+    const where: Record<string, unknown> = { memberId };
+    if (query.status) where.status = query.status;
+
+    const [data, total] = await this.loanRepository.findAndCount({
+      where,
+      relations: { loanItems: { bookCopy: { book: true } } },
+      order: { createdAt: 'DESC' },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+
+    return { data, total, page: query.page, limit: query.limit };
+  }
 
   async requestLoan(memberId: string, bookCopyIds: string[]): Promise<Loan> {
     return this.inTransaction(async (repos) => {
@@ -119,6 +138,25 @@ export class LoansService {
       for (const item of loan.loanItems) {
         item.status = LoanItemStatus.RETURNED;
         item.returnedAt = now;
+        item.bookCopy.status = CopyStatus.AVAILABLE;
+      }
+
+      await repos.bookCopies.save(loan.loanItems.map((item) => item.bookCopy));
+      await repos.loanItems.save(loan.loanItems);
+      return repos.loans.save(loan);
+    });
+  }
+
+  async rejectLoan(loanId: string): Promise<Loan> {
+    return this.inTransaction(async (repos) => {
+      const loan = await this.findLoanWithItems(repos.loans, loanId);
+      if (!loan || loan.status !== LoanStatus.PENDING) {
+        throw new BadRequestException('Valid pending loan not found.');
+      }
+
+      loan.status = LoanStatus.REJECTED;
+      for (const item of loan.loanItems) {
+        item.status = LoanItemStatus.RETURNED;
         item.bookCopy.status = CopyStatus.AVAILABLE;
       }
 

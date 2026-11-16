@@ -11,6 +11,7 @@ function setup({
   memberRow = member as unknown,
   overdueCount = 0,
   copies = [{ id: '10', status: 'available' }] as Array<{ id: string; status: string }>,
+  existingLoan = null as unknown,
 } = {}) {
   // Each repository is "bound" to the transaction by returning itself
   const manager = {
@@ -27,6 +28,8 @@ function setup({
   const loans = {
     manager,
     create,
+    findOne: vi.fn(() => Promise.resolve(existingLoan)),
+    findAndCount: vi.fn(() => Promise.resolve([existingLoan ? [existingLoan] : [], existingLoan ? 1 : 0])),
     save: vi.fn((loan: object) => Promise.resolve({ id: '50', ...loan })),
   };
   const loanItems = { createQueryBuilder: () => qb, create, save: vi.fn((rows: unknown) => Promise.resolve(rows)) };
@@ -85,5 +88,101 @@ describe('LoansService.requestLoan', () => {
       memberRow: { ...member, blockedUntil: new Date(Date.now() - 1000) },
     });
     await expect(service.requestLoan('1', ['10'])).resolves.toBeDefined();
+  });
+});
+
+const pendingLoan = {
+  id: '50',
+  memberId: '1',
+  loanCode: 'LN-123',
+  status: 'pending',
+  loanItems: [
+    { id: '1', status: 'requested', bookCopy: { id: '10', status: 'reserved' } },
+    { id: '2', status: 'requested', bookCopy: { id: '11', status: 'reserved' } },
+  ],
+};
+
+const activeLoan = {
+  id: '50',
+  memberId: '1',
+  loanCode: 'LN-123',
+  status: 'active',
+  loanItems: [
+    { id: '1', status: 'borrowed', borrowedAt: new Date(), dueDate: new Date(), bookCopy: { id: '10', status: 'borrowed' } },
+  ],
+};
+
+describe('LoansService.rejectLoan', () => {
+  it('sets the loan to rejected and releases copies back to available', async () => {
+    const { service, loans, bookCopies, loanItems } = setup({ existingLoan: pendingLoan });
+    const result = await service.rejectLoan('50');
+
+    expect(result).toMatchObject({ id: '50', status: 'rejected' });
+    expect(bookCopies.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: '10', status: 'available' }),
+        expect.objectContaining({ id: '11', status: 'available' }),
+      ]),
+    );
+    expect(loanItems.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ status: 'returned' }),
+      ]),
+    );
+  });
+
+  it('refuses when the loan is not pending', async () => {
+    const { service, loans } = setup({ existingLoan: activeLoan });
+    await expect(service.rejectLoan('50')).rejects.toThrow(/pending/i);
+    expect(loans.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the loan does not exist', async () => {
+    const { service, loans } = setup({ existingLoan: null });
+    await expect(service.rejectLoan('999')).rejects.toThrow(/pending/i);
+    expect(loans.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('LoansService.findByMember', () => {
+  it('returns paginated loans for the member', async () => {
+    const loan = { ...activeLoan, createdAt: new Date() };
+    const { service, loans } = setup({ existingLoan: loan });
+    const result = await service.findByMember('1', { page: 1, limit: 20 });
+
+    expect(result).toEqual({
+      data: [loan],
+      total: 1,
+      page: 1,
+      limit: 20,
+    });
+    expect(loans.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { memberId: '1' },
+        order: { createdAt: 'DESC' },
+        skip: 0,
+        take: 20,
+      }),
+    );
+  });
+
+  it('filters by status when provided', async () => {
+    const { service, loans } = setup({ existingLoan: null });
+    await service.findByMember('1', { page: 1, limit: 10, status: 'active' as never });
+
+    expect(loans.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { memberId: '1', status: 'active' },
+      }),
+    );
+  });
+
+  it('applies pagination offset correctly', async () => {
+    const { service, loans } = setup({ existingLoan: null });
+    await service.findByMember('1', { page: 3, limit: 10 });
+
+    expect(loans.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 20, take: 10 }),
+    );
   });
 });
