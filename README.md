@@ -153,6 +153,45 @@ If the package is private, log in first with `docker login ghcr.io` (a GitHub to
 `read:packages`). Roll back only across versions with the same database schema: an older
 image can't use tables or columns added after it.
 
+Seed the catalog (books and copies)
+
+npm run seed:dev fills a local database with dummy data. To fill the shared Supabase database with the demo catalog instead (51 books with authors, categories and about 140 physical copies), run the catalog seed:
+
+bash
+npm run migration:run     # the schema must be current first (books.item_type, etc.)
+npm run seed:catalog      # writes to the database in DATABASE_URL
+
+What it creates:
+
+8 categories, 16 authors and 51 items: books, limited_edition books and research_paper items (books.item_type).
+2 to 4 copies per item with barcodes like LIB-000123, mixed conditions, shelf locations, and a few damaged or lost copies for demos. Every item keeps at least one available copy. No copy is seeded as borrowed: that status belongs to the loans flow.
+
+It is safe to run again: it reuses existing rows by title, name and ISBN, tops copies up to the target count, and never touches a copy that has loan history. It does write to whatever DATABASE_URL points at, so tell the team before running it against the shared database.
+
+Roll back a migration
+
+Schema changes go through migrations (npm run migration:generate, then npm run migration:run). To undo the most recent migration:
+
+bash
+# 1. See what is applied, newest first (Supabase SQL editor or psql)
+#    SELECT id, name FROM migrations ORDER BY id DESC LIMIT 5;
+
+# 2. Undo the newest one: runs its down() and removes its row from "migrations"
+npm run migration:revert
+
+# 3. Repeat step 2 to go back one more migration, one at a time
+
+Before you run it:
+
+Know what down() destroys. Reverting a migration that added a column or table drops it and its data (for example, reverting AddBookItemType removes books.item_type). Read the migration's down() first.
+Never revert on the shared Supabase database without telling the team. Everyone uses the same schema; one revert changes it for all of you and for the deployed app. Take a backup first (Supabase dashboard, Database, Backups).
+Keep the code and the database in step. After a revert, also revert the matching entity and migration commit (git revert <sha>). If an entity still lists a column the database no longer has, requests fail with column ... does not exist.
+Check the result: run the SELECT above again, then start the API and open /api/docs.
+
+Local and test databases are rebuilt from the entities, so they never need a revert: drop them (or docker compose down -v) and run npm run seed:dev again.
+
+To roll back the deployed image instead of the schema, see Roll back to an earlier image.
+
 ## Database note
 
 `src/database/migrations/1793626719884-InitialSchema.ts` only alters tables that already exist in
