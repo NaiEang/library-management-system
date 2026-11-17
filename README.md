@@ -96,6 +96,63 @@ docker compose --profile app up -d --build    # + the API image
 docker compose --profile observability up -d  # + Jaeger, Prometheus, Grafana
 ```
 
+### Run it from a clean clone
+
+You need Docker (with Compose) and Node.js 24 (only to seed the database).
+
+```bash
+git clone https://github.com/NaiEang/library-management-system.git
+cd library-management-system
+cp .env.example .env
+```
+
+In `.env`, replace `JWT_ACCESS_SECRET` with a random secret (the app refuses the placeholder):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+Then start the database, seed it, and start the API:
+
+```bash
+docker compose up -d                          # 1. Postgres + Redis
+npm ci                                        # 2. tools for the seed script
+npm run seed:dev                              # 3. build the schema and fill dummy data
+docker compose --profile app up -d --build    # 4. build and start the API
+docker compose --profile app ps               # all three should be "healthy"
+curl http://localhost:3000/health
+```
+
+Seed first: the API expects the tables to exist. The seed runs from your machine (its
+dummy-data library isn't in the production image) and writes to the Postgres container
+through port 5432. Swagger is at `http://localhost:3000/api/docs`; log in with the seeded
+accounts listed in [Run it locally](#run-it-locally).
+
+Inside Docker the API runs with `NODE_ENV=production`, so email verification codes are only
+sent if `SMTP_*` is set in `.env`. For a demo without an email server, add
+`NODE_ENV=development` to `.env`: codes then appear in `docker logs libraflow-api`.
+
+### Roll back to an earlier image
+
+Every push to `main` that passes CI publishes the API image to GitHub Container Registry,
+tagged with its commit SHA: `ghcr.io/naieang/libraflow-api:<sha>` (plus `latest`). Find the
+SHA of a version that worked under the repository's **Packages** or **Actions** page, then:
+
+```bash
+API_IMAGE=ghcr.io/naieang/libraflow-api:<sha> docker compose --profile app up -d --no-build api
+```
+
+Compose pulls that image and replaces the running API; the database and its data stay as
+they are. To go back to building the current code:
+
+```bash
+docker compose --profile app up -d --build api
+```
+
+If the package is private, log in first with `docker login ghcr.io` (a GitHub token with
+`read:packages`). Roll back only across versions with the same database schema: an older
+image can't use tables or columns added after it.
+
 ## Database note
 
 `src/database/migrations/1793626719884-InitialSchema.ts` only alters tables that already exist in
