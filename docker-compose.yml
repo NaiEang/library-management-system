@@ -38,6 +38,9 @@ services:
   api:
     profiles: ['app']
     build: .
+    # Name of the built image. Set API_IMAGE to run an image from GHCR
+    # instead, e.g. to roll back (see README, "Roll back to an earlier image").
+    image: ${API_IMAGE:-libraflow-api:dev}
     container_name: libraflow-api
     env_file: .env
     environment:
