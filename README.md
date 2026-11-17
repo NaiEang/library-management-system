@@ -29,6 +29,9 @@ the accounts are `admin@libraflow.local`, `manager1@libraflow.local`, `librarian
 `seed:dev` and the E2E setup refuse to run against anything but localhost or Docker, so a
 Supabase `DATABASE_URL` is never reset.
 
+For a full list of endpoints with sample `curl` commands and responses, see
+[docs/api-reference.md](docs/api-reference.md).
+
 Overdue reminders (BullMQ) and the queue dashboard at `/queues`: see
 [docs/testing-overdue-notifications.md](docs/testing-overdue-notifications.md) for how to try them.
 
@@ -42,15 +45,7 @@ Overdue reminders (BullMQ) and the queue dashboard at `/queues`: see
 | `npm test` | Unit tests |
 | `npm run test:e2e` | E2E tests against a local `libraflow_test` database ([below](#tests)) |
 
-## Dashboard, activity logs and roles
-
-| Endpoint | Who | Notes |
-|---|---|---|
-| `GET /api/v1/dashboard/stats` | admin, librarian | Stat cards, copies and loan items by status, 30-day loan trend, top books, category usage, recent activity |
-| `GET /api/v1/activity-logs` | admin, librarian | `page`, `limit` (≤100), `action`, `entityType`, `userId`, `role`, `from`, `to`, `search` |
-| `GET /api/v1/activity-logs/facets` | admin, librarian | Values and counts for the filter dropdowns |
-| `GET /observability/{metrics,traces,logs}` | admin | Recent metrics, traces and logs as JSON |
-| `GET /metrics`, `GET /health` | public | Prometheus scrape target and health check |
+## Roles and activity logs
 
 **Activity logs are automatic.** `ActivityLogInterceptor` records every successful
 POST/PUT/PATCH/DELETE by an admin or librarian: action from the method (CREATE/UPDATE/DELETE),

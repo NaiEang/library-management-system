@@ -33,5 +33,6 @@ import { TelegramController } from './telegram/telegram.controller';
     BullModule.registerQueue({ name: OVERDUE_QUEUE }),
     BullBoardModule.forFeature({ name: OVERDUE_QUEUE, adapter: BullMQAdapter }),
   ],
+  exports: [NotificationsService, TelegramLinkService, NotifierModule],
 })
 export class NotificationsModule {}
