@@ -26,7 +26,8 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "typecheck": "tsc --noEmit",
-    "seed:admin": "ts-node -r tsconfig-paths/register src/users/seed/seed-admin.cli.ts"
+    "seed:admin": "ts-node -r tsconfig-paths/register src/users/seed/seed-admin.cli.ts",
+    "seed:catalog": "ts-node -r tsconfig-paths/register src/database/seed-books.ts"
   },
   "dependencies": {
     "@bull-board/api": "^9.12.0",
