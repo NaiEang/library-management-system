@@ -4,6 +4,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RoleName } from '../common/constants';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { SendNotificationDto } from './dto/send-notification.dto';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('notifications')
@@ -19,6 +20,18 @@ export class NotificationsController {
   @Post()
   create(@Body() dto: CreateNotificationDto) {
     return this.notificationsService.create(dto);
+  }
+
+  @ApiOperation({
+    summary: 'Send a notification via email and/or Telegram (staff only)',
+    description:
+      'Creates an in-app notification AND sends it to the user via the chosen channels. ' +
+      'Omit "channels" to send via all configured channels.',
+  })
+  @Roles(RoleName.ADMIN, RoleName.LIBRARIAN)
+  @Post('send')
+  send(@Body() dto: SendNotificationDto) {
+    return this.notificationsService.send(dto);
   }
 
   @ApiOperation({ summary: 'List my notifications' })

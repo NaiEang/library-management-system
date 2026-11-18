@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ActivityLog } from './../dashboard/entities/activity-log.entity';
 import { LoanItem } from '../loans/entities/loan-item.entity';
+import { User } from '../users/entities/user.entity';
 import { NotifierModule } from './channels/notifier.module';
 import { Notification } from './entities/notification.entity';
 import { TelegramLink } from './entities/telegram-link.entity';
@@ -28,7 +29,7 @@ import { TelegramController } from './telegram/telegram.controller';
     TelegramBotPoller,
   ],
   imports: [
-    TypeOrmModule.forFeature([Notification, ActivityLog, LoanItem, TelegramLink]),
+    TypeOrmModule.forFeature([Notification, ActivityLog, LoanItem, TelegramLink, User]),
     NotifierModule,
     BullModule.registerQueue({ name: OVERDUE_QUEUE }),
     BullBoardModule.forFeature({ name: OVERDUE_QUEUE, adapter: BullMQAdapter }),

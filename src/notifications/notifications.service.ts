@@ -1,18 +1,27 @@
 
 import {
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { NOTIFIERS, type Notifier } from './channels/notifier';
+import { TelegramLinkService } from './telegram/telegram-link.service';
 import { Notification } from './entities/notification.entity';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { SendNotificationDto } from './dto/send-notification.dto';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @Inject(NOTIFIERS) private readonly notifiers: Notifier[],
+    private readonly telegramLinks: TelegramLinkService,
   ) {}
 
   // Create in-app notification
@@ -78,5 +87,38 @@ export class NotificationsService {
         readAt: new Date(),
       },
     );
+  }
+
+  // Send a notification to a user via chosen channels (email, telegram) + in-app
+  async send(dto: SendNotificationDto) {
+    const user = await this.userRepository.findOne({ where: { id: dto.userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const notification = await this.create({
+      userId: dto.userId,
+      title: dto.title,
+      message: dto.message,
+      type: dto.type!,
+    });
+
+    const to = {
+      userId: user.id,
+      email: user.email ?? null,
+      name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username,
+      telegramChatId: await this.telegramLinks.chatIdOf(user.id),
+    };
+
+    const wantedChannels = dto.channels?.length
+      ? new Set(dto.channels)
+      : new Set(this.notifiers.map((n) => n.channel));
+
+    const delivered: string[] = [];
+    for (const notifier of this.notifiers) {
+      if (!wantedChannels.has(notifier.channel)) continue;
+      await notifier.send({ to, subject: dto.title, text: dto.message });
+      delivered.push(notifier.channel);
+    }
+
+    return { notification, delivered };
   }
 }
