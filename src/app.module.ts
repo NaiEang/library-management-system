@@ -21,6 +21,7 @@ import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
 import { AuthorsModule } from './authors/authors.module';
 import { BookCopiesModule } from './book-copies/book-copies.module';
+import { SpacesModule } from './spaces/spaces.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { BookCopiesModule } from './book-copies/book-copies.module';
     PaymentsModule,
     NotificationsModule,
     DashboardModule,
+    SpacesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
