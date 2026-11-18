@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: libraflow
       POSTGRES_DB: libraflow_dev
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       # libraflow_test for the E2E suite is created by the tests themselves on their first run
       - postgres_data:/var/lib/postgresql/data
